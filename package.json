@@ -1,0 +1,57 @@
+{
+  "name": "free-window-max",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file=.env apps/api/src/index.ts",
+    "dev:web": "vite --config apps/web/vite.config.ts",
+    "build": "tsc --noEmit && vite build --config apps/web/vite.config.ts && tsup apps/api/src/index.ts --format esm --platform node --target node22 --out-dir dist --external pg-native",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "docs:api": "tsx scripts/export-openapi.ts",
+    "max:check": "tsx --env-file=.env scripts/max-check.ts",
+    "max:webhook": "tsx --env-file=.env scripts/max-webhook.ts",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:api": "node --env-file-if-exists=.env scripts/check-api.mjs"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.2",
+    "@fastify/helmet": "13.1.1",
+    "@fastify/rate-limit": "11.2.0",
+    "@fastify/static": "10.1.5",
+    "@fastify/swagger": "9.9.0",
+    "@fastify/swagger-ui": "6.1.1",
+    "@maxhub/max-bot-api": "0.3.1",
+    "@maxhub/max-ui": "0.5.0",
+    "@tanstack/react-query": "5.104.0",
+    "drizzle-orm": "0.45.3",
+    "fastify": "5.12.5",
+    "fastify-type-provider-zod": "7.0.0",
+    "lucide-react": "1.48.0",
+    "pg": "8.23.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "yaml": "2.9.1",
+    "zod": "4.6.5",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.4",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "tsup": "8.5.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "7.3.6",
+    "vitest": "3.2.7"
+  }
+}

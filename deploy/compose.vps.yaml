@@ -1,0 +1,29 @@
+# docker compose -f compose.yaml -f deploy/compose.vps.yaml up -d --build
+services:
+  app:
+    ports: !reset []
+    environment:
+      PUBLIC_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env}
+      DEMO_AUTH: ${DEMO_AUTH:-false}
+      MAX_MODE: ${MAX_MODE:-webhook}
+      TRUST_PROXY_HOPS: 1
+  caddy:
+    image: caddy:2.10.2-alpine
+    ports:
+      - 80:80
+      - 443:443
+      - 443:443/udp
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,152 @@
+[
+  {
+    "name": "@fastify/cookie",
+    "version": "11.1.2",
+    "license": "MIT"
+  },
+  {
+    "name": "@fastify/helmet",
+    "version": "13.1.1",
+    "license": "MIT"
+  },
+  {
+    "name": "@fastify/rate-limit",
+    "version": "11.2.0",
+    "license": "MIT"
+  },
+  {
+    "name": "@fastify/static",
+    "version": "10.1.5",
+    "license": "MIT"
+  },
+  {
+    "name": "@fastify/swagger",
+    "version": "9.9.0",
+    "license": "MIT"
+  },
+  {
+    "name": "@fastify/swagger-ui",
+    "version": "6.1.1",
+    "license": "MIT"
+  },
+  {
+    "name": "@maxhub/max-bot-api",
+    "version": "0.3.1",
+    "license": "MIT"
+  },
+  {
+    "name": "@maxhub/max-ui",
+    "version": "0.5.0",
+    "license": "MIT"
+  },
+  {
+    "name": "@tanstack/react-query",
+    "version": "5.104.0",
+    "license": "MIT"
+  },
+  {
+    "name": "drizzle-orm",
+    "version": "0.45.3",
+    "license": "Apache-2.0"
+  },
+  {
+    "name": "fastify",
+    "version": "5.12.5",
+    "license": "MIT"
+  },
+  {
+    "name": "fastify-type-provider-zod",
+    "version": "7.0.0",
+    "license": "MIT"
+  },
+  {
+    "name": "lucide-react",
+    "version": "1.48.0",
+    "license": "ISC"
+  },
+  {
+    "name": "pg",
+    "version": "8.23.0",
+    "license": "MIT"
+  },
+  {
+    "name": "react",
+    "version": "19.2.8",
+    "license": "MIT"
+  },
+  {
+    "name": "react-dom",
+    "version": "19.2.8",
+    "license": "MIT"
+  },
+  {
+    "name": "yaml",
+    "version": "2.9.1",
+    "license": "ISC"
+  },
+  {
+    "name": "zod",
+    "version": "4.6.5",
+    "license": "MIT"
+  },
+  {
+    "name": "zustand",
+    "version": "5.0.15",
+    "license": "MIT"
+  },
+  {
+    "name": "@playwright/test",
+    "version": "1.63.0",
+    "license": "Apache-2.0"
+  },
+  {
+    "name": "@types/node",
+    "version": "22.20.4",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/pg",
+    "version": "8.23.1",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/react",
+    "version": "19.3.0",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/react-dom",
+    "version": "19.3.0",
+    "license": "MIT"
+  },
+  {
+    "name": "@vitejs/plugin-react",
+    "version": "5.2.0",
+    "license": "MIT"
+  },
+  {
+    "name": "tsup",
+    "version": "8.5.1",
+    "license": "MIT"
+  },
+  {
+    "name": "tsx",
+    "version": "4.23.15",
+    "license": "MIT"
+  },
+  {
+    "name": "typescript",
+    "version": "7.0.2",
+    "license": "Apache-2.0"
+  },
+  {
+    "name": "vite",
+    "version": "7.3.6",
+    "license": "MIT"
+  },
+  {
+    "name": "vitest",
+    "version": "3.2.7",
+    "license": "MIT"
+  }
+]

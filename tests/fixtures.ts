@@ -1,0 +1,6 @@
+import { preferencesSchema, presets, type Event, type Member } from '../packages/contracts/index.js';
+export const testDate = new Date(Date.now() + 86400000 + 3 * 3600000).toISOString().slice(0, 10);
+export function pref(extra: Record<string, unknown> = {}) { return preferencesSchema.parse({ availableFrom: `${testDate}T18:30:00+03:00`, availableTo: `${testDate}T21:00:00+03:00`, budget: 1000, maxTravelMinutes: 30, origin: { ...presets[0], preset: 'mirea' }, ...extra }); }
+export function member(extra: Record<string, unknown> = {}, name = 'Тест') : Member { return { userId: name, name, preferences: pref(extra) }; }
+export const event: Event = { id: 'test-event', provider: 'demo', externalId: 'test', title: 'Тестовое событие', description: '', categories: ['games'], tags: [], ageRestriction: 18, startAt: `${testDate}T19:00:00+03:00`, endAt: `${testDate}T20:00:00+03:00`, flexible: false, durationMinutes: 60, priceMin: 650, priceMax: 650, priceKnown: true, isFree: false, availability: 'available', venueId: 'test', venue: 'Тест', address: '', latitude: 55.67, longitude: 37.48, sourceUrl: null, imageUrl: null, sourceUpdatedAt: new Date().toISOString(), demo: true, accent: 'mint' };
+export const travel = { outbound: 20, inbound: 20, mode: 'transit' as const, modelled: true, provider: 'test' };

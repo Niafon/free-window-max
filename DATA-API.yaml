@@ -1,0 +1,150 @@
+schemaVersion: '1.0'
+name: 'ОКНО / Свободное окно MAX'
+# Replace before submission; intentionally not a claimed running endpoint.
+baseUrl: https://okno.example.com
+localBaseUrl: http://127.0.0.1:3000
+contentType: application/json
+roles:
+  anonymous: { description: 'Без входа' }
+  owner: { description: 'Аня, создатель компании, отдельная cookie' }
+  member: { description: 'Борис, участник, отдельная cookie' }
+variables:
+  TEST_DATE: tomorrow_in_Europe_Moscow
+  DEMO_ACCESS_KEY: environment_or_empty_for_local
+defaults:
+  query: {}
+  pathParameters: {}
+  headers: { Content-Type: application/json }
+  body: null
+checks:
+  - id: health
+    method: GET
+    path: /health
+    role: anonymous
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [status, database] }
+  - id: unauthorized
+    method: GET
+    path: /api/v1/me
+    role: anonymous
+    expected: { status: [401], contentType: application/json, jsonType: object, required: [error.code, error.message, error.retryable] }
+  - id: loginOwner
+    method: POST
+    path: /api/v1/auth/demo
+    role: owner
+    body: { name: 'Аня', accessKey: '{{DEMO_ACCESS_KEY}}' }
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [user.id, user.name, mode] }
+  - id: loginMember
+    method: POST
+    path: /api/v1/auth/demo
+    role: member
+    body: { name: 'Борис', accessKey: '{{DEMO_ACCESS_KEY}}' }
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [user.id, user.name, mode] }
+  - id: interests
+    method: PUT
+    path: /api/v1/me/interests
+    role: owner
+    body: { interests: [games, culture] }
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [ok] }
+  - id: solo
+    method: POST
+    path: /api/v1/search
+    role: owner
+    body: &preferences
+      dataMode: demo
+      availableFrom: '{{TEST_DATE}}T18:30:00+03:00'
+      availableTo: '{{TEST_DATE}}T21:30:00+03:00'
+      budget: 1000
+      maxTravelMinutes: 30
+      transportBudget: 0
+      categories: [games, culture]
+      excludedCategories: []
+      origin: { lat: 55.6706, lon: 37.4802, preset: mirea }
+      age: 18
+      context: any
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [id, mode, results.0.event.id, results.0.routeUrl, results.0.members.0.returnAt, excluded, compromises] }
+  - id: foreignSearch
+    method: GET
+    path: /api/v1/search/{id}
+    pathParameters: { id: '{{solo.id}}' }
+    role: member
+    expected: { status: [403], contentType: application/json, jsonType: object, required: [error.code] }
+  - id: soloPlan
+    method: POST
+    path: /api/v1/plans
+    role: owner
+    body: { searchId: '{{solo.id}}', eventId: '{{solo.results.0.event.id}}' }
+    expected: { status: [201], contentType: application/json, jsonType: object, required: [id, candidate.event.id, shareUrl] }
+  - id: publicPlan
+    method: GET
+    path: /api/v1/plans/{id}
+    pathParameters: { id: '{{soloPlan.id}}' }
+    role: member
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [id, candidate.members, candidate.event.title] }
+  - id: company
+    method: POST
+    path: /api/v1/sessions
+    role: owner
+    body: { title: 'Проверка API', preferences: *preferences }
+    expected: { status: [201], contentType: application/json, jsonType: object, required: [id, inviteUrl, ownerId, members] }
+  - id: invite
+    method: GET
+    path: /api/v1/invites/{id}
+    pathParameters: { id: '{{company.id}}' }
+    role: member
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [id, title, memberCount, expiresAt] }
+  - id: join
+    method: POST
+    path: /api/v1/sessions/{id}/join
+    pathParameters: { id: '{{company.id}}' }
+    role: member
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [id, members.1.userId] }
+  - id: notReady
+    method: POST
+    path: /api/v1/sessions/{id}/search
+    pathParameters: { id: '{{company.id}}' }
+    role: owner
+    expected: { status: [409], contentType: application/json, jsonType: object, required: [error.code] }
+  - id: memberPreferences
+    method: PUT
+    path: /api/v1/sessions/{id}/preferences
+    pathParameters: { id: '{{company.id}}' }
+    role: member
+    body:
+      <<: *preferences
+      budget: 500
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [id, members] }
+  - id: groupSearch
+    method: POST
+    path: /api/v1/sessions/{id}/search
+    pathParameters: { id: '{{company.id}}' }
+    role: owner
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [id, commonWindow.from, results.0.event.id, results.0.members.1.returnAt] }
+  - id: forbiddenChoice
+    method: POST
+    path: /api/v1/sessions/{id}/select
+    pathParameters: { id: '{{company.id}}' }
+    role: member
+    body: { searchId: '{{groupSearch.id}}', eventId: '{{groupSearch.results.0.event.id}}' }
+    expected: { status: [403], contentType: application/json, jsonType: object, required: [error.code] }
+  - id: groupChoice
+    method: POST
+    path: /api/v1/sessions/{id}/select
+    pathParameters: { id: '{{company.id}}' }
+    role: owner
+    body: { searchId: '{{groupSearch.id}}', eventId: '{{groupSearch.results.0.event.id}}' }
+    expected: { status: [201], contentType: application/json, jsonType: object, required: [id, candidate.event.id, shareUrl] }
+  - id: feedback
+    method: POST
+    path: /api/v1/events/{id}/feedback
+    pathParameters: { id: '{{solo.results.0.event.id}}' }
+    role: owner
+    body: { value: 1 }
+    expected: { status: [200], contentType: application/json, jsonType: object, required: [ok] }
+  - id: invalidInput
+    method: POST
+    path: /api/v1/search
+    role: owner
+    body:
+      <<: *preferences
+      budget: -1
+    expected: { status: [400], contentType: application/json, jsonType: object, required: [error.code, error.message] }
