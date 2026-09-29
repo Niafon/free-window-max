@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Database } from '../db/index.js';
 import { searches, users, planningSessions, sessionMembers, plans, feedback } from '../db/schema.js';
 import type { Config } from '../config.js';
-import type { Event, Member, Preferences, Candidate } from '../../../../packages/contracts/index.js';
+import type { Event, Member, Preferences, Candidate, SearchResult } from '../../../../packages/contracts/index.js';
 import { DemoEventProvider, DemoRouteProvider } from '../providers/demo.js';
 import { KudaGoProvider } from '../providers/kudago.js';
 import { YandexRouteProvider } from '../providers/yandex.js';
@@ -19,6 +19,9 @@ export class Service {
     });
   }
   get db() { return this.database.db; }
+  ownRoute(result: SearchResult, p: Preferences): SearchResult {
+    return { ...result, results: result.results.map(c => ({ ...c, routeUrl: `https://yandex.ru/maps/?rtext=${p.origin.lat},${p.origin.lon}~${c.event.latitude},${c.event.longitude}&rtt=mt` })) };
+  }
   shareCard(c: Candidate): Candidate {
     // Retain source event fields only: no Yandex durations, ranking or origin.
     return { event: c.event, score: 0, startAt: c.event.demo ? c.startAt : c.event.startAt, endAt: c.event.demo ? c.endAt : c.event.endAt,
@@ -59,7 +62,7 @@ export class Service {
     // Persist source-only choices; selecting/sharing never spends another route request.
     await this.db.insert(searches).values({ id: result.id, userId: u.id, sessionId, preferences: p, result: p.dataMode === 'demo' ? result : null, selectionOptions: result.results.map(c => this.shareCard(c)), expiresAt: new Date(Date.now() + 86400000) });
     await this.database.pool.query('INSERT INTO metrics(kind,duration_ms,result_count) VALUES($1,$2,$3)', [sessionId ? 'group_search' : 'search', Date.now() - start, result.results.length]);
-    return result;
+    return this.ownRoute(result, members?.find(m => m.userId === u.id)?.preferences ?? p);
   }
   async getSearch(id: string, u: Identity, publicPlan = false) {
     const row = (await this.db.select().from(searches).where(eq(searches.id, id)))[0];
@@ -68,7 +71,14 @@ export class Service {
       if (!row.sessionId) throw new AppError('FORBIDDEN', 'Этот подбор принадлежит другому пользователю', 403);
       await this.session(row.sessionId, u);
     }
-    if (row.result) return row.result;
+    if (row.result) {
+      if (row.sessionId && !publicPlan) {
+        const session = await this.session(row.sessionId, u);
+        if (session.searchId !== id) throw new AppError('SESSION_CHANGED', 'Параметры компании изменились. Повторите общий подбор', 409);
+        return this.ownRoute(row.result, session.members.find(m => m.userId === u.id)!.preferences!);
+      }
+      return row.result;
+    }
     throw new AppError('SEARCH_EXPIRED', 'Реальные маршруты не сохраняются. Запустите новый подбор явно; сохранённая карточка плана доступна по ссылке.', 409);
   }
   async createSession(u: Identity, title: string, preferences?: Preferences) {
@@ -85,7 +95,7 @@ export class Service {
     if (session.expiresAt.getTime() < Date.now()) throw new AppError('SESSION_EXPIRED', 'Плану больше 24 часов. Создайте новый', 410);
     const members = await this.db.select().from(sessionMembers).where(eq(sessionMembers.sessionId, id));
     if (!invitePreview && !members.some(m => m.userId === u.id)) throw new AppError('FORBIDDEN', 'Сначала присоединитесь к компании', 403);
-    return { ...session, members, inviteUrl: this.config.BOT_USERNAME ? `https://max.ru/${this.config.BOT_USERNAME}?startapp=session_${id}` : `${this.config.PUBLIC_URL}/?session=${id}` };
+    return { ...session, members, inviteUrl: this.config.BOT_USERNAME && this.config.PUBLIC_URL.startsWith('https://') ? `https://max.ru/${this.config.BOT_USERNAME}?startapp=session_${id}` : `${this.config.PUBLIC_URL}/?session=${id}` };
   }
   async join(id: string, u: Identity) {
     await this.session(id, u, true);
@@ -111,6 +121,7 @@ export class Service {
   }
   async groupSearch(id: string, u: Identity) {
     const s = await this.session(id, u);
+    if (s.ownerId !== u.id) throw new AppError('FORBIDDEN', 'Общий подбор запускает создатель компании', 403);
     if (s.members.some(m => !m.preferences)) throw new AppError('GROUP_NOT_READY', 'Дождитесь параметров всех участников', 409);
     const result = await this.search(u, s.members[0].preferences!, id, s.members);
     const changed = await this.db.update(planningSessions).set({ searchId: result.id, selectedId: null }).where(and(eq(planningSessions.id, id), eq(planningSessions.revision, s.revision))).returning();
@@ -135,7 +146,7 @@ export class Service {
     }
     const id = randomUUID(); await this.db.insert(plans).values({ id, userId: u.id, searchId, eventId, snapshot: this.shareCard(candidate) });
     await this.database.pool.query('INSERT INTO metrics(kind) VALUES($1)', ['selection']);
-    return { id, candidate, shareUrl: this.config.BOT_USERNAME ? `https://max.ru/${this.config.BOT_USERNAME}?startapp=plan_${id}` : `${this.config.PUBLIC_URL}/?plan=${id}` };
+    return { id, candidate, shareUrl: this.config.BOT_USERNAME && this.config.PUBLIC_URL.startsWith('https://') ? `https://max.ru/${this.config.BOT_USERNAME}?startapp=plan_${id}` : `${this.config.PUBLIC_URL}/?plan=${id}` };
   }
   async getPlan(id: string, u: Identity) {
     const row = (await this.db.select().from(plans).where(eq(plans.id, id)))[0];

@@ -33,9 +33,13 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
     expect((await call('GET', `/api/v1/sessions/${sid}`, undefined, bob)).statusCode).toBe(403);
     expect((await call('POST', `/api/v1/sessions/${sid}/join`, undefined, bob)).statusCode).toBe(200);
     expect((await call('POST', `/api/v1/sessions/${sid}/search`)).statusCode).toBe(409);
-    expect((await call('PUT', `/api/v1/sessions/${sid}/preferences`, pref({ budget: 500 }), bob)).statusCode).toBe(200);
+    expect((await call('PUT', `/api/v1/sessions/${sid}/preferences`, pref({ budget: 500, origin: { lat: 55.6637, lon: 37.4837, preset: 'southwest' } }), bob)).statusCode).toBe(200);
+    expect((await call('POST', `/api/v1/sessions/${sid}/search`, undefined, bob)).statusCode).toBe(403);
     const search = await call('POST', `/api/v1/sessions/${sid}/search`); expect(search.statusCode).toBe(200); expect(search.json().results.length).toBeGreaterThan(0);
     for (const c of search.json().results) { expect(c.totalPrice).toBeLessThanOrEqual(500); expect(c.members).toHaveLength(2); }
+    const friendSearch = (await call('GET', `/api/v1/search/${search.json().id}`, undefined, bob)).json();
+    expect(friendSearch.results[0].routeUrl).toContain('55.6637,37.4837~');
+    expect(friendSearch.results[0].routeUrl).not.toContain('55.6706,37.4802~');
     const body = { searchId: search.json().id, eventId: search.json().results[0].event.id };
     expect((await call('POST', `/api/v1/sessions/${sid}/select`, body, bob)).statusCode).toBe(403);
     expect((await call('POST', `/api/v1/sessions/${sid}/select`, body)).statusCode).toBe(201);

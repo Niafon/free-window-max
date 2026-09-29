@@ -46,7 +46,7 @@ export function evaluate(event: Event, members: Member[], routes: Travel[]): { c
     event, score, startAt: iso(start), endAt: iso(end), totalPrice: Math.max(...members.map(m => (event.priceMax ?? 0) + m.preferences!.transportBudget)),
     reasons: [`Укладывается в окно ${members.length > 1 ? 'каждого участника' : 'с возвращением'}`, `В пределах бюджета${members.length > 1 ? ' каждого' : ''}`, ...matched.map(c => `Совпадает с интересом «${categoryNames[c] ?? c}»`)],
     members: members.map((m, i) => ({ name: m.name, travel: routes[i], arriveAt: iso(Date.parse(m.preferences!.availableFrom) + routes[i].outbound * minute), returnAt: iso(end + (routes[i].inbound + BUFFER_MINUTES) * minute), spareMinutes: Math.floor((Date.parse(m.preferences!.availableTo) - end) / minute) - routes[i].inbound - BUFFER_MINUTES })),
-    routeUrl: `https://yandex.ru/maps/?rtext=${p.origin.lat},${p.origin.lon}~${event.latitude},${event.longitude}&rtt=mt`, sourceUrl: event.sourceUrl,
+    routeUrl: `https://yandex.ru/maps/?rtext=${members.length === 1 ? `${p.origin.lat},${p.origin.lon}` : ''}~${event.latitude},${event.longitude}&rtt=mt`, sourceUrl: event.sourceUrl,
     warnings: [...(event.availability === 'unknown' ? ['Наличие мест не подтверждено — уточните у организатора'] : []), ...(routes.some(r => r.modelled) ? ['Время в пути — модельное, не реальный маршрут'] : []), ...(members.some(m => m.preferences!.transportBudget === 0) ? ['Проезд: 0 ₽ по введённым параметрам (например, по проездному)'] : [])],
   };
   return { candidate, reasons: [] };
