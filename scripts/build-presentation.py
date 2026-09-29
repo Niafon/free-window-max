@@ -46,7 +46,7 @@ def rect(x,y,w,h,color,r=14):
 def text(value,x,y,w=860,size=18,color=ink,bold=False,leading=None):
     style=ParagraphStyle('p',fontName='UIBold' if bold else 'UI',fontSize=size,leading=leading or size*1.32,textColor=HexColor(color))
     p=Paragraph(value,style); _,height=p.wrap(w,H)
-    if y+height>514: raise ValueError(f'Overflow on slide {page}: {value[:70]}')
+    if y+height>(532 if y>=514 else 507): raise ValueError(f'Overflow on slide {page}: {value[:70]}')
     p.drawOn(c,x,H-y-height); return height
 def begin(label,title,dark=False):
     global page

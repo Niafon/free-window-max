@@ -17,7 +17,9 @@ jobs:
           POSTGRES_USER: okno
           POSTGRES_PASSWORD: ci_local_only
         ports: ['5432:5432']
-        options: --health-cmd 'pg_isready -U okno -d okno_test' --health-interval 3s --health-timeout 3s --health-retries 20
+        options: >-
+          --health-cmd "pg_isready -U okno -d okno_test"
+          --health-interval 3s --health-timeout 3s --health-retries 20
     env:
       TEST_DATABASE_URL: postgres://okno:ci_local_only@localhost:5432/okno_test
       DATABASE_URL: postgres://okno:ci_local_only@localhost:5432/okno_test
@@ -42,10 +44,31 @@ jobs:
           for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:3000/health && break || sleep 1; done
           npm run check:api
       - run: docker compose config --quiet
-      - run: docker build -t free-window-max:ci .
+      - name: Build Docker within five minutes (base image excluded)
+        run: |
+          docker pull node:22.20.0-bookworm-slim
+          started=$(date +%s)
+          docker compose build --no-cache app
+          elapsed=$(( $(date +%s) - started ))
+          echo "Docker build: ${elapsed} seconds (limit 300)" | tee docker-build-time.txt
+          test "$elapsed" -lt 300
+      - name: Run the complete Docker stack and API acceptance
+        env:
+          PORT: '3100'
+          PUBLIC_URL: http://127.0.0.1:3100
+          CHECK_BASE_URL: http://127.0.0.1:3100
+        run: |
+          docker compose up -d --no-build --wait --wait-timeout 90
+          npm run check:api
+          curl -fsS http://127.0.0.1:3100/ | grep -q '<html'
+      - name: Collect container diagnostics
+        if: failure()
+        run: docker compose logs --tail 100
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: browser-results
-          path: test-results/
+          path: |
+            test-results/
+            docker-build-time.txt
           retention-days: 7
