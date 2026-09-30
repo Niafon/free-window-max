@@ -50,3 +50,9 @@ Caddy получает сертификат и проксирует на при�
 - SSH только по ключам (`PasswordAuthentication no`, `PermitRootLogin prohibit-password`), `fail2ban` для sshd. Новый ключ добавляется в `/root/.ssh/authorized_keys` через консоль панели VPS.
 - Резервная копия БД: `/usr/local/bin/okno-backup` ежедневно в 03:30 (cron `/etc/cron.d/okno`) → `/var/backups/okno/okno-YYYY-MM-DD.sql.gz`, хранится 7 дней. Восстановление: `gunzip -c <файл> | docker compose -f compose.yaml -f deploy/compose.vps.yaml exec -T db psql -U okno okno`.
 - Мониторинг: `/usr/local/bin/okno-health` каждые 5 минут проверяет `/health`; при падении и восстановлении отправляет сообщение через бота MAX ответственному участнику.
+
+## Автоматическая выкатка (CD)
+
+`deploy/autodeploy.sh` запускается cron на VPS каждые 2 минуты (`/etc/cron.d/okno`). Он берёт из публичного GitHub API самый новый commit ветки `main`, для которого workflow «Verify MVP» (unit, integration, e2e, Docker) завершился успешно, и если он новее работающего — делает fast-forward, `docker compose ... up -d --build` и ждёт `/health`. Если проверка не прошла, возвращает предыдущий commit и пересобирает его. Секреты GitHub не нужны: сервер сам забирает только проверенный код. Более старый зелёный commit (пока новый ещё в CI) игнорируется. Журнал — `/var/log/okno-deploy.log`; при `OKNO_NOTIFY_MAX_USER` в `.env` бот MAX сообщает об успехе или откате.
+
+Ручная выкатка остаётся возможной той же командой `up -d --build`; скрипт и ручной запуск не пересекаются благодаря блокировке `/var/lock/okno-deploy.lock`.
