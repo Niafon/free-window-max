@@ -128,6 +128,15 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
     expect(sent.every(s => !s.extra || s.extra.attachments[0].payload.buttons.length > 0)).toBe(true);
     } finally { clock.mockRestore(); }
   });
+  it('Отчёт метрик §29 считает конверсию и время до результата без личных данных', async () => {
+    for (const ms of [30000, 90000, 200000]) expect((await call('POST', '/api/v1/metrics', { kind: 'time_to_select', durationMs: ms })).statusCode).toBe(200);
+    await call('POST', '/api/v1/metrics', { kind: 'time_to_result', durationMs: 42000 });
+    const r = await ctx.app.inject('/api/v1/stats?days=7'); expect(r.statusCode).toBe(200); const st = r.json();
+    expect(st.searches).toBeGreaterThan(0); expect(st.searchToSelectionPercent).toBeGreaterThan(0); expect(st.timeToResultSec.samples).toBeGreaterThan(0); expect(typeof st.timeToResultSec.median).toBe('number');
+    expect(st.timeToSelectSec.samples).toBeGreaterThanOrEqual(3); expect(st.timeToSelectSec.under3MinPercent).toBeGreaterThan(0); expect(st.timeToSelectSec.under3MinPercent).toBeLessThan(100); expect(st.withinHardConstraintsPercent).toBe(100);
+    expect(JSON.stringify(st)).not.toMatch(/max:|demo:|55\.6/);
+    expect((await ctx.app.inject('/api/v1/stats?days=90')).statusCode).toBe(400);
+  });
   it('Сбой отправки в MAX не вызывает повторных доставок, если пользователь получил ответ', async () => {
     const integration = createBot(ctx.service, readConfig({ BOT_TOKEN: 'unit-test-only' })); let calls = 0;
     vi.spyOn(integration.bot.api, 'sendMessageToUser').mockImplementation(async () => { if (++calls === 1) throw Object.assign(new Error('Bad request'), { status: 400 }); return {} as any; });

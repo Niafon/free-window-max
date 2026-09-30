@@ -35,6 +35,8 @@ export interface SearchResult {
   id: string; results: Candidate[]; excluded: Array<{ id: string; title: string; reasons: string[] }>;
   compromises: Array<{ label: string; field: string; value: number; count: number }>;
   commonWindow: { from: string; to: string } | null; mode: string; notices: string[]; createdAt: string;
+  // Internal: provider timings for structured logs (TZ §27); stripped by the response schema.
+  timing?: { eventsMs: number; routesMs: number };
 }
 export const presets = [
   { id: 'mirea', label: 'МИРЭА · Вернадского, 78', lat: 55.6706, lon: 37.4802 },

@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { serializerCompiler, validatorCompiler, jsonSchemaTransform, type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { validateInitData, equalSecret } from './auth/index.js';
 import { Service, type Identity } from './search/service.js';
@@ -17,7 +17,7 @@ import type { Config } from './config.js';
 import type { Database } from './db/index.js';
 import { users } from './db/schema.js';
 import { AppError } from './errors.js';
-import { preferencesSchema, categories, presets } from '../../../packages/contracts/index.js';
+import { preferencesSchema, categories, presets, type SearchResult } from '../../../packages/contracts/index.js';
 import { candidateSchema, errorSchema, searchResultSchema, okSchema } from '../../../packages/contracts/responses.js';
 
 declare module 'fastify' { interface FastifyRequest { identity: Identity; } }
@@ -55,10 +55,10 @@ export async function buildApp(config: Config, database: Database, quiet = false
     }
   });
   app.setErrorHandler((err: any, req, reply) => {
-    if (err instanceof AppError) return reply.code(err.status).send({ error: { code: err.code, message: err.message, retryable: err.retryable } });
+    if (err instanceof AppError) { req.log.info({ request_id: req.id, endpoint: req.routeOptions?.url, error_code: err.code, status: err.status }, 'request rejected'); return reply.code(err.status).send({ error: { code: err.code, message: err.message, retryable: err.retryable } }); }
     if (err.validation || err instanceof z.ZodError || err.statusCode === 400) return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: 'Проверьте время, точку старта и ограничения. Данные не потеряны.', retryable: false } });
     if (err.statusCode === 429) return reply.code(429).send({ error: { code: 'RATE_LIMITED', message: 'Подождите минуту и повторите', retryable: true } });
-    req.log.error({ code: 'INTERNAL_ERROR', requestId: req.id }, 'Request failed');
+    req.log.error({ code: 'INTERNAL_ERROR', error_code: 'INTERNAL_ERROR', request_id: req.id, endpoint: req.routeOptions?.url }, 'Request failed');
     return reply.code(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Не удалось завершить действие. Попробуйте ещё раз', retryable: true } });
   });
   app.get('/health', { schema: { response: { 200: z.object({ status: z.literal('ok'), database: z.literal('ready') }), 503: errorSchema } } }, async () => { await database.pool.query('SELECT 1'); return { status: 'ok' as const, database: 'ready' as const }; });
@@ -72,7 +72,13 @@ export async function buildApp(config: Config, database: Database, quiet = false
   });
   app.get('/api/v1/me', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], response: { 200: generic, ...errors } } }, async req => { const u = await service.user(req.identity); return { ...u, authMode: req.identity.maxId ? 'max' : 'demo' }; });
   app.put('/api/v1/me/interests', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], body: z.object({ interests: z.array(z.enum(categories)).max(7) }), response: { 200: okSchema, ...errors } } }, async req => { await service.user(req.identity); await service.db.update(users).set({ interests: req.body.interests }).where(eq(users.id, req.identity.id)); return { ok: true }; });
-  app.post('/api/v1/search', { preHandler: auth, config: { rateLimit: { max: 12, timeWindow: '1 minute' } }, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], body: preferencesSchema, response: { 200: searchResultSchema, ...errors } } }, async req => service.search(req.identity, req.body));
+  app.post('/api/v1/search', { preHandler: auth, config: { rateLimit: { max: 12, timeWindow: '1 minute' } }, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], body: preferencesSchema, response: { 200: searchResultSchema, ...errors } } }, async req => { const started = Date.now(); return logSearch(req, await service.search(req.identity, req.body), started); });
+  // TZ §27: one structured line per search; the user id is a truncated hash, never the MAX id or coordinates.
+  const logSearch = (req: any, r: SearchResult, started: number) => {
+    req.log.info({ request_id: req.id, user_id: createHash('sha256').update(req.identity.id).digest('hex').slice(0, 12), endpoint: req.routeOptions?.url, duration_ms: Date.now() - started,
+      provider: r.mode === 'demo' ? 'demo' : 'kudago+yandex', provider_duration_ms: r.timing ? r.timing.eventsMs + r.timing.routesMs : undefined, events_ms: r.timing?.eventsMs, routes_ms: r.timing?.routesMs, result_count: r.results.length }, 'search');
+    return r;
+  };
   app.get('/api/v1/search/:id', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], params: idParams, response: { 200: searchResultSchema, ...errors } } }, async req => service.getSearch(req.params.id, req.identity));
   app.post('/api/v1/sessions', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], body: z.object({ title: z.string().min(1).max(80).default('Пойдём вместе'), preferences: preferencesSchema.optional() }), response: { 201: generic, ...errors } } }, async (req, reply) => { reply.code(201); return service.createSession(req.identity, req.body.title, req.body.preferences); });
   const sessionView = (s: Awaited<ReturnType<Service['session']>>, u: Identity) => ({ ...s, members: s.members.map(m => ({ userId: m.userId, name: m.name, ready: !!m.preferences, preferences: m.userId === u.id ? m.preferences : null,
@@ -82,14 +88,15 @@ export async function buildApp(config: Config, database: Database, quiet = false
   app.get('/api/v1/invites/:id', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], params: idParams, response: { 200: generic, ...errors } } }, async req => { const s = await service.session(req.params.id, req.identity, true); return { id: s.id, title: s.title, memberCount: s.members.length, expiresAt: s.expiresAt }; });
   app.post('/api/v1/sessions/:id/join', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], params: idParams, response: { 200: generic, ...errors } } }, async req => sessionView(await service.join(req.params.id, req.identity), req.identity));
   app.put('/api/v1/sessions/:id/preferences', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], params: idParams, body: preferencesSchema, response: { 200: generic, ...errors } } }, async req => sessionView(await service.preferences(req.params.id, req.identity, req.body), req.identity));
-  app.post('/api/v1/sessions/:id/search', { preHandler: auth, config: { rateLimit: { max: 6, timeWindow: '1 minute' } }, schema: { params: idParams, response: { 200: searchResultSchema, ...errors } } }, async req => service.groupSearch(req.params.id, req.identity));
+  app.post('/api/v1/sessions/:id/search', { preHandler: auth, config: { rateLimit: { max: 6, timeWindow: '1 minute' } }, schema: { params: idParams, response: { 200: searchResultSchema, ...errors } } }, async req => { const started = Date.now(); return logSearch(req, await service.groupSearch(req.params.id, req.identity), started); });
   const selectBody = z.object({ searchId: z.uuid(), eventId: z.string().min(1).max(180) });
   const selection = z.object({ id: z.uuid(), candidate: candidateSchema, shareUrl: z.string() });
   app.post('/api/v1/plans', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], body: selectBody, response: { 201: selection, ...errors } } }, async (req, reply) => { reply.code(201); return service.select(req.identity, req.body.searchId, req.body.eventId); });
   app.post('/api/v1/sessions/:id/select', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], params: idParams, body: selectBody, response: { 201: selection, ...errors } } }, async (req, reply) => { reply.code(201); return service.select(req.identity, req.body.searchId, req.body.eventId, req.params.id); });
   app.get('/api/v1/plans/:id', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], params: idParams, response: { 200: z.object({ id: z.uuid(), candidate: candidateSchema }), ...errors } } }, async req => service.getPlan(req.params.id, req.identity));
   app.post('/api/v1/events/:id/feedback', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], params: eventParams, body: z.object({ value: z.union([z.literal(1), z.literal(-1)]) }), response: { 200: okSchema, ...errors } } }, async req => service.rate(req.identity, req.params.id, req.body.value));
-  app.post('/api/v1/metrics', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], body: z.object({ kind: z.enum(['route_open', 'source_open', 'share', 'app_open']), durationMs: z.number().int().min(0).max(86400000).optional() }), response: { 200: okSchema, ...errors } } }, async req => { await database.pool.query('INSERT INTO metrics(kind,duration_ms) VALUES($1,$2)', [req.body.kind, req.body.durationMs ?? null]); return { ok: true }; });
+  app.post('/api/v1/metrics', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], body: z.object({ kind: z.enum(['route_open', 'source_open', 'share', 'app_open', 'card_open', 'time_to_result', 'time_to_select']), durationMs: z.number().int().min(0).max(86400000).optional() }), response: { 200: okSchema, ...errors } } }, async req => { await database.pool.query('INSERT INTO metrics(kind,duration_ms) VALUES($1,$2)', [req.body.kind, req.body.durationMs ?? null]); return { ok: true }; });
+  app.get('/api/v1/stats', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } }, schema: { querystring: z.object({ days: z.coerce.number().int().min(1).max(30).default(7) }), response: { 200: generic, ...errors } } }, async req => service.stats(req.query.days));
   app.get('/api/v1/quota', { preHandler: auth, schema: { security: [{ MaxInitData: [] }, { DemoCookie: [] }], response: { 200: z.object({ used: z.number(), limit: z.number() }), ...errors } } }, async () => { const r = await database.pool.query("SELECT used FROM provider_quota WHERE day=(now() AT TIME ZONE 'Europe/Moscow')::date"); return { used: r.rows[0]?.used ?? 0, limit: config.YANDEX_DAILY_LIMIT }; });
   app.post('/max/webhook', { schema: { body: z.object({ update_type: z.string(), timestamp: z.number().optional() }).passthrough(), response: { 200: okSchema, ...errors } } }, async req => {
     if (!equalSecret(String(req.headers['x-max-bot-api-secret'] ?? ''), config.MAX_WEBHOOK_SECRET)) throw new AppError('UNAUTHORIZED', 'Недопустимая подпись webhook', 401);

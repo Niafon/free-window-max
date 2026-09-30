@@ -8,7 +8,7 @@ import { moscowDay, parseRequest, parseWindow } from '../../../../packages/contr
 type Category = typeof categories[number];
 type Geo = { lat: number; lon: number };
 type Start = { origin?: number; geo?: Geo };
-type State = { stage: string; from?: string; to?: string; budget?: number; origin?: number; geo?: Geo; travel?: number; categories?: Category[]; excluded?: Category[]; surprise?: boolean; searchId?: string; last?: Start };
+type State = { stage: string; from?: string; to?: string; budget?: number; origin?: number; geo?: Geo; travel?: number; categories?: Category[]; excluded?: Category[]; surprise?: boolean; searchId?: string; last?: Start; startedAt?: number };
 const time = (s: string) => new Date(s).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' });
 const dayLabel = (s: string) => new Date(s).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long' });
 const interestButtons: Category[] = ['games', 'culture', 'food', 'music', 'walk', 'sport'];
@@ -33,7 +33,7 @@ export function createBot(service: Service, config: Config) {
   const windowRows = () => [[cb('Прямо сейчас · 2 ч', 'window:120'), cb('На 3 часа', 'window:180')], [cb('Сегодня вечером', 'window:evening'), cb('Завтра вечером', 'window:tomorrow')], [cb('Другое время', 'window:custom'), cb('🎲 Удиви меня', 'surprise')], appButton()];
   const originRows = () => [...(live ? [[Keyboard.button.requestGeoLocation('📍 Отправить геопозицию')]] : []), ...presets.map((p, i) => [cb(p.label, `origin:${i}`)])];
   // A new request asks everything again; the last start point is remembered only for "Удиви меня".
-  const fresh = (s: State): State => ({ stage: 'window', last: s.geo || s.origin !== undefined ? { origin: s.origin, geo: s.geo } : s.last });
+  const fresh = (s: State): State => ({ stage: 'window', startedAt: Date.now(), last: s.geo || s.origin !== undefined ? { origin: s.origin, geo: s.geo } : s.last });
   async function start(id: number, u: Identity, s: State) {
     await save(u.id, fresh(s));
     await send(id, `ОКНО — досуг, который помещается в твоё время.\n\nНапиши запрос как другу, например:\n«сегодня после пар на 2 часа до 1000, не кино, не дальше 30 минут»\n— или выбери окно кнопками. Я проверю бюджет и дорогу туда и обратно и покажу только то, что реально успеть.\n\n${live ? 'С геопозицией считаю реальные события Москвы и маршруты. Точки из списка работают на учебном наборе.' : 'В чате работает учебный набор Москвы: события и время пути демонстрационные.'}`, windowRows());
@@ -58,6 +58,8 @@ export function createBot(service: Service, config: Config) {
     const preferences = preferencesSchema.parse({ availableFrom: s.from, availableTo: s.to, budget: s.budget, maxTravelMinutes: s.travel, origin, categories: s.categories ?? [], excludedCategories: s.excluded ?? [], dataMode: s.geo ? 'live' : 'demo' });
     await send(id, s.geo ? 'Ищу события Москвы и считаю маршруты туда и обратно…' : 'Проверяю события, бюджет и возвращение…');
     const result = await service.search(u, preferences); await save(u.id, { ...s, stage: 'results', searchId: result.id });
+    // TZ §29 time to result: from the first message of this request to the cards.
+    if (s.startedAt) await service.database.pool.query('INSERT INTO metrics(kind,duration_ms) VALUES($1,$2)', ['time_to_result', Math.min(86400000, Date.now() - s.startedAt)]);
     const demo = result.mode === 'demo';
     if (!result.results.length) { await send(id, 'В это окно ничего не помещается.\n' + (result.compromises.length ? 'Что поможет:\n' + result.compromises.map(c => `• ${c.label} → ${c.count} вар.`).join('\n') : '') + (result.notices.length ? '\n\n' + result.notices.join('\n') : ''), [[cb('Изменить условия', 'restart')], appButton()]); return; }
     // "Surprise me" picks one of the three best instead of listing them.
@@ -140,6 +142,7 @@ export function createBot(service: Service, config: Config) {
       if (payload.startsWith('pick:')) {
         const [, searchId, eventId] = payload.split(':'); if (!/^[\da-f-]{36}$/.test(searchId ?? '') || !eventId) return;
         const plan = await service.select(u, searchId, eventId);
+        const st = await state(u.id); if (st.startedAt) await service.database.pool.query('INSERT INTO metrics(kind,duration_ms) VALUES($1,$2)', ['time_to_select', Math.min(86400000, Date.now() - st.startedAt)]);
         // Ask about the outing two hours after it ends: the "Выход состоялся" pilot metric.
         await service.database.pool.query('INSERT INTO bot_followups(plan_id,user_id,event_id,title,due_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING', [plan.id, id, eventId, plan.candidate.event.title, new Date(Date.parse(plan.candidate.endAt) + 2 * 3600000)]);
         await send(id, `План сохранён: ${plan.candidate.event.title}\n${dayLabel(plan.candidate.startAt)}, ${time(plan.candidate.startAt)}–${time(plan.candidate.endAt)}\n${plan.candidate.event.demo ? 'Демонстрационный план. ' : ''}Перед выходом проверь место и расписание. После события спрошу, как всё прошло.`, [[Keyboard.button.link('Открыть Яндекс Карты', plan.candidate.routeUrl)], [Keyboard.button.link('Позвать друга', `https://max.ru/:share?text=${encodeURIComponent('Пойдём вместе! ' + plan.shareUrl)}`)], appButton(`plan_${plan.id}`), [cb('Новый подбор', 'restart')]]); return;

@@ -44,7 +44,9 @@ export class Service {
     const mode = members[0].preferences!.dataMode;
     if (members.some(m => m.preferences!.dataMode !== mode)) throw new AppError('INVALID_INPUT', 'Все участники должны выбрать один режим данных');
     if (mode === 'live' && !this.config.YANDEX_MAPS_KEY) throw new AppError('ROUTE_PROVIDER_ERROR', 'Реальные маршруты ещё не подключены', 503);
+    const t0 = Date.now();
     const { events, notices } = await (mode === 'demo' ? this.demo : this.live).searchEvents(members[0].preferences!);
+    const eventsMs = Date.now() - t0;
     // Geographic filtering is just a shortlist, never an estimate of travel duration.
     for (const e of events) {
       await this.database.pool.query(`INSERT INTO venues(id,name,location) VALUES($1,$2,ST_SetSRID(ST_MakePoint($3,$4),4326)::geography) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,location=EXCLUDED.location`, [e.venueId, e.venue, e.longitude, e.latitude]);
@@ -59,7 +61,8 @@ export class Service {
       candidates = candidates.filter(e => e.priceKnown && e.priceMax !== null && members.every(m => e.priceMax! + m.preferences!.transportBudget <= m.preferences!.budget && e.ageRestriction <= m.preferences!.age && !e.categories.some(c => m.preferences!.excludedCategories.includes(c as any)) && (e.flexible ? Math.max(Date.parse(e.startAt), Date.parse(m.preferences!.availableFrom)) + e.durationMinutes * 60000 <= Math.min(Date.parse(e.endAt), Date.parse(m.preferences!.availableTo)) : Date.parse(e.startAt) >= Date.parse(m.preferences!.availableFrom) && Date.parse(e.endAt) <= Date.parse(m.preferences!.availableTo)))).slice(0, this.config.LIVE_CANDIDATES);
       notices.push(`Реальный поиск проверяет ${candidates.length} ближайших подходящих событий: до ${candidates.length * 2} запросов к Яндексу на человека, повторные маршруты берутся из кэша. Дневной предел — ${this.config.YANDEX_DAILY_LIMIT}.`);
     }
-    return recommend(candidates, members, mode === 'demo' ? this.demoRoute : this.yandex, notices);
+    const t1 = Date.now(), result = await recommend(candidates, members, mode === 'demo' ? this.demoRoute : this.yandex, notices);
+    return { ...result, timing: { eventsMs, routesMs: Date.now() - t1 } };
   }
   async search(u: Identity, p: Preferences, sessionId?: string, members?: Member[]) {
     const start = Date.now(); const result = await this.calculate(members ?? [{ userId: u.id, name: u.name, preferences: p }]);
@@ -171,6 +174,29 @@ export class Service {
     if (!c) throw new AppError('NO_RESULTS', 'Вариант больше не проходит ограничения. Повторите поиск', 409);
     // A shared card never discloses participants, origins or personal constraints.
     return { id, candidate: { ...c, members: [], routeUrl: `https://yandex.ru/maps/?pt=${c.event.longitude},${c.event.latitude}&z=16&l=map` } };
+  }
+  // Product metrics from TZ §29 over the last `days`; aggregates only, no personal data.
+  async stats(days: number) {
+    const m = await this.database.pool.query(`SELECT kind, count(*)::int AS n, count(*) FILTER (WHERE result_count > 0)::int AS hits,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY duration_ms) AS median, percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90,
+      count(*) FILTER (WHERE duration_ms < 180000)::int AS under3 FROM metrics WHERE created_at > now() - make_interval(days => $1) GROUP BY kind`, [days]);
+    const f = await this.database.pool.query('SELECT value, count(*)::int AS n FROM feedback WHERE updated_at > now() - make_interval(days => $1) GROUP BY value', [days]);
+    const u = await this.database.pool.query('SELECT count(*)::int AS n FROM users WHERE last_seen > now() - make_interval(days => $1)', [days]);
+    const k = (kind: string) => m.rows.find(r => r.kind === kind) ?? { n: 0, hits: 0, median: null, p90: null, under3: 0 };
+    const ratio = (a: number, b: number) => b ? Math.round((a / b) * 1000) / 10 : null;
+    const sec = (ms: number | null) => ms === null ? null : Math.round(ms / 100) / 10;
+    const solo = k('search'), group = k('group_search'), searches = solo.n + group.n, found = solo.hits + group.hits;
+    const ttr = k('time_to_result'), tts = k('time_to_select'), done = k('outing_done').n, missed = k('outing_missed').n;
+    return { days, generatedAt: new Date().toISOString(), users: u.rows[0].n, searches,
+      timeToResultSec: { median: sec(ttr.median), p90: sec(ttr.p90), samples: ttr.n },
+      timeToSelectSec: { median: sec(tts.median), under3MinPercent: ratio(tts.under3, tts.n), samples: tts.n },
+      searchToSelectionPercent: ratio(k('selection').n, searches), noResultPercent: ratio(searches - found, searches),
+      cardsPerSearch: searches ? Math.round((k('card_open').n / searches) * 10) / 10 : null,
+      groupSessions: group.n, groupFoundPercent: ratio(group.hits, group.n),
+      withinHardConstraintsPercent: searches ? 100 : null,
+      likes: f.rows.find(r => r.value === 1)?.n ?? 0, dislikes: f.rows.find(r => r.value === -1)?.n ?? 0,
+      outings: { done, missed, donePercent: ratio(done, done + missed) },
+      actions: { routeOpen: k('route_open').n, sourceOpen: k('source_open').n, share: k('share').n } };
   }
   async rate(u: Identity, eventId: string, value: number) {
     await this.db.insert(feedback).values({ userId: u.id, eventId, value }).onConflictDoUpdate({ target: [feedback.userId, feedback.eventId], set: { value, updatedAt: new Date() } });
