@@ -19,10 +19,13 @@ async function search(page) {
   const find = page.getByRole('button', { name: 'Найти варианты', exact: true });
   await find.waitFor({ timeout: 30000 }); await page.waitForTimeout(500);
   if (!(await page.locator('footer .mode-badge.live').count())) throw new Error('Real data is not enabled on this server');
-  await page.getByRole('spinbutton', { name: 'Бюджет на человека' }).fill('2000');
-  await page.getByRole('spinbutton', { name: 'Лимит дороги' }).fill('45');
+  // A wide evening window and generous limits so the deck shows several real events, not one.
+  await page.getByRole('combobox', { name: 'Свободен с' }).selectOption('17:30');
+  await page.getByRole('combobox', { name: 'Свободен до' }).selectOption('22:30');
+  await page.getByRole('spinbutton', { name: 'Бюджет на человека' }).fill('3000');
+  await page.getByRole('spinbutton', { name: 'Лимит дороги' }).fill('60');
   await find.click();
-  const done = page.getByRole('heading', { name: /идей, которые помещаются/ });
+  const done = page.getByRole('heading', { name: /помеща(ю|е)тся в окно/ });
   await Promise.race([done.waitFor({ timeout: 90000 }), page.locator('.error').waitFor({ timeout: 90000 }).then(async () => { throw new Error(await page.locator('.error').innerText()); })]);
   // Let photos load before capturing.
   await page.waitForLoadState('networkidle').catch(() => {}); await page.waitForTimeout(1500);

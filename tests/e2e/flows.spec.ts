@@ -11,7 +11,7 @@ test('Одиночный поиск, карточка, выбор, оценка 
   await page.getByRole('button', { name: 'Заполнить' }).click(); await expect(page.getByRole('status')).toContainText('Заполнил');
   await expect(page.getByRole('spinbutton', { name: 'Бюджет на человека' })).toHaveValue('1000');
   await page.getByRole('button', { name: 'Найти варианты', exact: true }).click();
-  await expect(page.getByRole('heading', { name: /идей, которые помещаются/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /помеща(ю|е)тся в окно/ })).toBeVisible();
   await expect(page.locator('.event-card .window-timeline').first()).toBeVisible();
   await page.getByRole('tab', { name: 'Карта' }).click(); await expect(page.locator('.results-map .map-pin').first()).toBeVisible(); await page.getByRole('tab', { name: 'Список' }).click();
   await page.screenshot({ path: `test-results/${info.project.name}-results.png`, fullPage: true });
@@ -46,7 +46,7 @@ test('Два пользователя проходят совместное пл
   await expect(page.getByRole('button', { name: 'Найти общее окно' })).toBeEnabled({ timeout: 10000 });
   await expect(page.locator('.group-windows')).toContainText('Общее окно');
   await page.getByRole('button', { name: 'Найти общее окно' }).click();
-  await expect(page.getByRole('heading', { name: /идей, которые помещаются/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /помеща(ю|е)тся в окно/ })).toBeVisible();
   await page.locator('.choose').first().click(); await page.getByRole('button', { name: 'Закрыть карточку' }).click();
   await expect(page.getByText(/Общий вариант выбран/)).toBeVisible();
   await friendContext.close();
