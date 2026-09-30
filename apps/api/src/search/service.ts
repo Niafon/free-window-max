@@ -50,13 +50,14 @@ export class Service {
       await this.database.pool.query(`INSERT INTO venues(id,name,location) VALUES($1,$2,ST_SetSRID(ST_MakePoint($3,$4),4326)::geography) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,location=EXCLUDED.location`, [e.venueId, e.venue, e.longitude, e.latitude]);
       await this.database.pool.query(`INSERT INTO events(id,venue_id,payload) VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now()`, [e.id, e.venueId, JSON.stringify(e)]);
     }
-    const p = members[0].preferences!;
+    // Shortlist around the group's centre: nearest venues first, so the route quota goes to the most promising events.
+    const lon = members.reduce((s, m) => s + m.preferences!.origin.lon, 0) / members.length, lat = members.reduce((s, m) => s + m.preferences!.origin.lat, 0) / members.length;
     const ids = events.map(e => e.id);
-    const rows = ids.length ? await this.database.pool.query(`SELECT e.payload FROM events e JOIN venues v ON e.venue_id=v.id WHERE e.id=ANY($1) AND ST_DWithin(v.location,ST_SetSRID(ST_MakePoint($2,$3),4326)::geography,60000) ORDER BY e.id`, [ids, p.origin.lon, p.origin.lat]) : { rows: [] };
+    const rows = ids.length ? await this.database.pool.query(`SELECT e.payload FROM events e JOIN venues v ON e.venue_id=v.id WHERE e.id=ANY($1) AND ST_DWithin(v.location,ST_SetSRID(ST_MakePoint($2,$3),4326)::geography,60000) ORDER BY ST_Distance(v.location,ST_SetSRID(ST_MakePoint($2,$3),4326)::geography), e.id`, [ids, lon, lat]) : { rows: [] };
     let candidates = rows.rows.map(r => r.payload as Event);
     if (mode === 'live') {
-      candidates = candidates.filter(e => e.priceKnown && e.priceMax !== null && members.every(m => e.priceMax! + m.preferences!.transportBudget <= m.preferences!.budget && e.ageRestriction <= m.preferences!.age && !e.categories.some(c => m.preferences!.excludedCategories.includes(c as any)) && Date.parse(e.startAt) >= Date.parse(m.preferences!.availableFrom) && Date.parse(e.endAt) <= Date.parse(m.preferences!.availableTo))).slice(0, 10);
-      notices.push('Реальный поиск обращается к Яндексу: не более 20 запросов на человека за подбор. Дневной предел — ' + this.config.YANDEX_DAILY_LIMIT + '.');
+      candidates = candidates.filter(e => e.priceKnown && e.priceMax !== null && members.every(m => e.priceMax! + m.preferences!.transportBudget <= m.preferences!.budget && e.ageRestriction <= m.preferences!.age && !e.categories.some(c => m.preferences!.excludedCategories.includes(c as any)) && Date.parse(e.startAt) >= Date.parse(m.preferences!.availableFrom) && Date.parse(e.endAt) <= Date.parse(m.preferences!.availableTo))).slice(0, this.config.LIVE_CANDIDATES);
+      notices.push(`Реальный поиск проверяет ${candidates.length} ближайших подходящих событий: до ${candidates.length * 2} запросов к Яндексу на человека, повторные маршруты берутся из кэша. Дневной предел — ${this.config.YANDEX_DAILY_LIMIT}.`);
     }
     return recommend(candidates, members, mode === 'demo' ? this.demoRoute : this.yandex, notices);
   }

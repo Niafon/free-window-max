@@ -9,7 +9,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env) {
     MAX_API_URL: z.string().url().default('https://platform-api.max.ru'),
     MAX_MODE: z.enum(['off', 'polling', 'webhook']).default('off'), MAX_WEBHOOK_SECRET: z.string().default(''),
     EVENT_PROVIDER: z.enum(['demo', 'kudago']).default('demo'), ROUTE_PROVIDER: z.enum(['demo', 'yandex']).default('demo'),
-    YANDEX_MAPS_KEY: z.string().default(''), YANDEX_DAILY_LIMIT: z.coerce.number().int().min(0).max(100).default(80), DEMO_AUTH: z.string().default('false').transform(v => v === 'true'),
+    YANDEX_MAPS_KEY: z.string().default(''), YANDEX_DAILY_LIMIT: z.coerce.number().int().min(0).max(100).default(80), LIVE_CANDIDATES: z.coerce.number().int().min(1).max(20).default(5), DEMO_AUTH: z.string().default('false').transform(v => v === 'true'),
     DEMO_ACCESS_KEY: z.string().default(''), INIT_DATA_MAX_AGE_SECONDS: z.coerce.number().default(86400), LOG_LEVEL: z.string().default('info'),
   }).parse(env);
   if (c.ROUTE_PROVIDER === 'yandex' && !c.YANDEX_MAPS_KEY) throw new Error('YANDEX_MAPS_KEY is required');
