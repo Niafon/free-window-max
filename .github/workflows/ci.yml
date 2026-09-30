@@ -23,7 +23,6 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://okno:ci_local_only@localhost:5432/okno_test
       DATABASE_URL: postgres://okno:ci_local_only@localhost:5432/okno_test
-      DEMO_AUTH: 'true'
       MAX_MODE: 'off'
       PUBLIC_URL: http://127.0.0.1:3000
     steps:

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import YAML from 'yaml';
 const spec = YAML.parse(readFileSync('DATA-API.yaml', 'utf8'), { merge: true });
 const base = process.env.CHECK_BASE_URL || spec.localBaseUrl;
-const values = { TEST_DATE: new Date(Date.now() + 27 * 3600000).toISOString().slice(0, 10), DEMO_ACCESS_KEY: process.env.DEMO_ACCESS_KEY || '' };
+const values = { TEST_DATE: new Date(Date.now() + 27 * 3600000).toISOString().slice(0, 10) };
 const cookies = {};
 const pathValue = (object, path) => path.split('.').reduce((a, k) => a?.[k], object);
 function resolve(value) {

@@ -24,7 +24,6 @@ services:
       PORT: 3000
       DATABASE_URL: postgres://okno:${POSTGRES_PASSWORD:-okno_local_only}@db:5432/okno
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
-      DEMO_AUTH: ${DEMO_AUTH:-true}
       MAX_MODE: ${MAX_MODE:-off}
     ports:
       - 127.0.0.1:${PORT:-3000}:3000

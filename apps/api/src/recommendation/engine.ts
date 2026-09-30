@@ -61,7 +61,7 @@ export async function recommend(events: Event[], members: Member[], provider: Ro
     return base;
   }
   const evaluated: Array<{ event: Event; routes: Travel[] }> = [];
-  let failures = 0;
+  let failures = 0, quotaFailures = 0;
   // Bounded candidate set and concurrency keep external calls controlled.
   const selected = [...events].sort((a, b) => Number(b.priceKnown) - Number(a.priceKnown) || a.id.localeCompare(b.id)).slice(0, 20);
   let next = 0;
@@ -80,11 +80,12 @@ export async function recommend(events: Event[], members: Member[], provider: Ro
         evaluated.push({ event, routes }); const result = evaluate(event, members, routes);
         if (result.candidate) base.results.push(result.candidate); else base.excluded.push({ id: event.id, title: event.title, reasons: result.reasons });
       } catch (error) {
-        failures++; base.excluded.push({ id: event.id, title: event.title, reasons: [error instanceof AppError ? error.message : 'Маршрут не проверен'] });
+        failures++; if (error instanceof AppError && error.code === 'RATE_LIMITED') quotaFailures++; base.excluded.push({ id: event.id, title: event.title, reasons: [error instanceof AppError ? error.message : 'Маршрут не проверен'] });
       }
     }
   }));
-  if (failures && evaluated.length === 0) throw new AppError('ROUTE_PROVIDER_ERROR', 'Не удалось проверить маршруты. В деморежиме используйте точку старта из списка; для реальных маршрутов проверьте подключение Яндекса.', 503, true);
+  if (failures && evaluated.length === 0 && quotaFailures === failures) throw new AppError('RATE_LIMITED', 'Дневной лимит реальных маршрутов исчерпан. Тестовые данные остаются доступны.', 429);
+  if (failures && evaluated.length === 0) throw new AppError('ROUTE_PROVIDER_ERROR', 'Не удалось проверить маршруты. Для тестовых данных выберите точку старта из списка; для реальных повторите позже или переключитесь на тестовые данные.', 503, true);
   if (failures) base.notices.push(`${failures} вариантов скрыто: маршрут не удалось проверить.`);
   base.results.sort((a, b) => b.score - a.score || a.event.id.localeCompare(b.event.id)); base.results = base.results.slice(0, 10);
   base.excluded.sort((a, b) => a.id.localeCompare(b.id));

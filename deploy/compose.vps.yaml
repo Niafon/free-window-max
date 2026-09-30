@@ -4,7 +4,6 @@ services:
     ports: !reset []
     environment:
       PUBLIC_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env}
-      DEMO_AUTH: ${DEMO_AUTH:-false}
       MAX_MODE: ${MAX_MODE:-webhook}
       TRUST_PROXY_HOPS: 1
   caddy:

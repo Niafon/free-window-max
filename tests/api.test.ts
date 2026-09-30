@@ -13,13 +13,13 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
     if (!new URL(url!).pathname.endsWith('_test')) throw new Error('TEST_DATABASE_URL must end in _test');
     await migrate(database);
     await database.pool.query('TRUNCATE session_members,planning_sessions,searches,plans,users,events,venues,feedback,bot_dialogs,bot_updates,bot_followups,provider_quota,metrics CASCADE');
-    ctx = await buildApp(readConfig({ DEMO_AUTH: 'true', DATABASE_URL: url, BOT_TOKEN: 'unit-test-only', MAX_WEBHOOK_SECRET: 'local-test-webhook-secret-32-characters' }), database, true);
+    ctx = await buildApp(readConfig({ DATABASE_URL: url, BOT_TOKEN: 'unit-test-only', MAX_WEBHOOK_SECRET: 'local-test-webhook-secret-32-characters' }), database, true);
     await ctx.app.ready();
-    const login = async (name: string) => { const r = await ctx.app.inject({ method: 'POST', url: '/api/v1/auth/demo', payload: { name } }); expect(r.statusCode).toBe(200); return r.cookies[0].value; };
+    const login = async (name: string) => { const r = await ctx.app.inject({ method: 'POST', url: '/api/v1/auth/guest', payload: { name } }); expect(r.statusCode).toBe(200); return r.cookies[0].value; };
     alice = await login('Аня'); bob = await login('Борис');
   });
   afterAll(async () => { await ctx?.app.close(); await database.pool.end(); });
-  const call = (method: any, url: string, payload?: any, user = alice) => ctx.app.inject({ method, url, payload, cookies: { okno_demo: user } });
+  const call = (method: any, url: string, payload?: any, user = alice) => ctx.app.inject({ method, url, payload, cookies: { okno_guest: user } });
   it('Состояние БД и OpenAPI доступны', async () => { expect((await call('GET', '/health')).statusCode).toBe(200); expect((await call('GET', '/openapi.json')).json().openapi).toBe('3.0.3'); });
   it('Защищает API и отвергает неверный ввод', async () => { expect((await ctx.app.inject('/api/v1/me')).statusCode).toBe(401); expect((await call('POST', '/api/v1/search', { ...pref(), budget: -1 })).statusCode).toBe(400); });
   it('Одиночный подбор → выбор → общая карточка без координат старта', async () => {

@@ -1,8 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
-async function login(page: Page, name: string) { await page.goto('/'); await page.getByRole('textbox', { name: 'Твоё имя' }).fill(name); await page.getByRole('button', { name: 'Войти в демо' }).click(); await expect(page.getByRole('button', { name: 'Найти варианты', exact: true })).toBeEnabled(); }
+// No login form: outside MAX a guest session is created automatically. Without a Yandex key the local stack falls back to labelled test data.
+async function open(page: Page) { await page.goto('/'); await expect(page.getByRole('button', { name: 'Найти варианты', exact: true })).toBeEnabled(); }
 test('Одиночный поиск, карточка, выбор, оценка и состояния', async ({ page }, info) => {
   const exceptions: string[] = []; page.on('pageerror', e => exceptions.push(e.message));
-  await login(page, 'Аня');
+  await open(page);
+  await expect(page.getByRole('textbox', { name: 'Твоё имя' })).toHaveCount(0);
+  await expect(page.locator('.mode-row .mode-badge')).toHaveText('Тестовые данные');
+  await expect(page.locator('footer .data-switch')).toContainText('Тестовые данные');
   await page.getByRole('textbox', { name: 'Опиши вечер одной фразой' }).fill('до 1000, не дальше 30 минут, игры');
   await page.getByRole('button', { name: 'Заполнить' }).click(); await expect(page.getByRole('status')).toContainText('Заполнил');
   await expect(page.getByRole('spinbutton', { name: 'Бюджет на человека' })).toHaveValue('1000');
@@ -26,19 +30,19 @@ test('Одиночный поиск, карточка, выбор, оценка 
   expect(exceptions).toEqual([]);
 });
 test('Два пользователя проходят совместное планирование', async ({ page, browser }) => {
-  await login(page, 'Аня');
+  await open(page);
   await page.getByRole('button', { name: 'С друзьями', exact: true }).click();
   await page.getByRole('button', { name: 'Создать компанию' }).click();
-  await expect(page.getByText('Аня (ты)')).toBeVisible();
+  await expect(page.locator('.members').getByText(/^Гость \d{4} \(ты\)/)).toBeVisible();
   const request = page.waitForResponse(r => r.url().includes('/preferences') && r.request().method() === 'PUT');
   await page.getByRole('button', { name: 'Сохранить мои параметры' }).click();
   const session = (await (await request).json());
   const friendContext = await browser.newContext(); const friend = await friendContext.newPage();
-  await login(friend, 'Борис'); await friend.goto(`/?session=${session.id}`);
+  await open(friend); await friend.goto(`/?session=${session.id}`);
   await friend.getByRole('button', { name: 'Присоединиться', exact: true }).click();
   await friend.getByRole('spinbutton', { name: 'Бюджет на человека' }).fill('500');
   await friend.getByRole('button', { name: 'Сохранить мои параметры' }).click();
-  await expect(page.locator('.members').getByText('Борис', { exact: false })).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.members > div')).toHaveCount(2, { timeout: 10000 });
   await expect(page.getByRole('button', { name: 'Найти общее окно' })).toBeEnabled({ timeout: 10000 });
   await expect(page.locator('.group-windows')).toContainText('Общее окно');
   await page.getByRole('button', { name: 'Найти общее окно' }).click();
