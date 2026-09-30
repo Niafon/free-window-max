@@ -1,7 +1,7 @@
 import { readConfig } from './config.js';
 import { createDatabase, migrate, cleanup } from './db/index.js';
 import { buildApp } from './app.js';
-import { createBot } from './max/bot.js';
+import { createBot, configureBot } from './max/bot.js';
 import { moscowDay } from '../../../packages/contracts/parse.js';
 const config = readConfig();
 const database = createDatabase(config.DATABASE_URL);
@@ -10,6 +10,7 @@ const { app, service, setBotHandler } = await buildApp(config, database);
 const integration = config.BOT_TOKEN ? createBot(service, config) : undefined;
 if (integration) setBotHandler(integration.process);
 await app.listen({ port: config.PORT, host: config.HOST });
+if (integration && config.MAX_MODE !== 'off') void configureBot(integration.bot, config, (level, data, message) => app.log[level](data, message));
 if (integration && config.MAX_MODE === 'polling') {
   integration.bot.catch(() => app.log.error({ code: 'MAX_API_ERROR' }, 'Bot update failed'));
   void integration.bot.start({ mode: 'polling', options: { allowedUpdates: ['bot_started', 'message_created', 'message_callback'], retry: true } }).catch(() => app.log.error({ code: 'MAX_API_ERROR' }, 'Polling unavailable'));

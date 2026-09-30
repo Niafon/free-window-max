@@ -22,6 +22,10 @@ test('Одиночный поиск, карточка, выбор, оценка 
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Выбрать план', exact: true }).click();
   await expect(page.getByText('План сохранён', { exact: true })).toBeVisible();
+  // Test data: booking is simulated in place and labelled, nothing leaves the app.
+  await page.getByRole('button', { name: 'Забронировать', exact: true }).click();
+  await expect(page.locator('.demo-booking')).toContainText('Перенаправлено на страницу бронирования');
+  await expect(page.locator('.demo-booking')).toContainText('тестовые данные');
   await page.getByRole('button', { name: 'Нравится', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('оценка сохранена');
   await page.getByRole('button', { name: 'Закрыть карточку' }).click();

@@ -1559,6 +1559,11 @@
                                 "nullable": true,
                                 "type": "string"
                               },
+                              "bookingUrl": {
+                                "default": null,
+                                "nullable": true,
+                                "type": "string"
+                              },
                               "sourceUpdatedAt": {
                                 "type": "string"
                               },
@@ -1597,6 +1602,7 @@
                               "availability",
                               "imageUrl",
                               "sourceUrl",
+                              "bookingUrl",
                               "sourceUpdatedAt",
                               "demo",
                               "accent"
@@ -2292,6 +2298,11 @@
                                 "nullable": true,
                                 "type": "string"
                               },
+                              "bookingUrl": {
+                                "default": null,
+                                "nullable": true,
+                                "type": "string"
+                              },
                               "sourceUpdatedAt": {
                                 "type": "string"
                               },
@@ -2330,6 +2341,7 @@
                               "availability",
                               "imageUrl",
                               "sourceUrl",
+                              "bookingUrl",
                               "sourceUpdatedAt",
                               "demo",
                               "accent"
@@ -5266,6 +5278,11 @@
                                 "nullable": true,
                                 "type": "string"
                               },
+                              "bookingUrl": {
+                                "default": null,
+                                "nullable": true,
+                                "type": "string"
+                              },
                               "sourceUpdatedAt": {
                                 "type": "string"
                               },
@@ -5304,6 +5321,7 @@
                               "availability",
                               "imageUrl",
                               "sourceUrl",
+                              "bookingUrl",
                               "sourceUpdatedAt",
                               "demo",
                               "accent"
@@ -6011,6 +6029,11 @@
                               "nullable": true,
                               "type": "string"
                             },
+                            "bookingUrl": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string"
+                            },
                             "sourceUpdatedAt": {
                               "type": "string"
                             },
@@ -6049,6 +6072,7 @@
                             "availability",
                             "imageUrl",
                             "sourceUrl",
+                            "bookingUrl",
                             "sourceUpdatedAt",
                             "demo",
                             "accent"
@@ -6683,6 +6707,11 @@
                               "nullable": true,
                               "type": "string"
                             },
+                            "bookingUrl": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string"
+                            },
                             "sourceUpdatedAt": {
                               "type": "string"
                             },
@@ -6721,6 +6750,7 @@
                             "availability",
                             "imageUrl",
                             "sourceUrl",
+                            "bookingUrl",
                             "sourceUpdatedAt",
                             "demo",
                             "accent"
@@ -7329,6 +7359,11 @@
                               "nullable": true,
                               "type": "string"
                             },
+                            "bookingUrl": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string"
+                            },
                             "sourceUpdatedAt": {
                               "type": "string"
                             },
@@ -7367,6 +7402,7 @@
                             "availability",
                             "imageUrl",
                             "sourceUrl",
+                            "bookingUrl",
                             "sourceUpdatedAt",
                             "demo",
                             "accent"
@@ -8298,6 +8334,7 @@
                     "enum": [
                       "route_open",
                       "source_open",
+                      "booking_open",
                       "share",
                       "app_open",
                       "card_open",

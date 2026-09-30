@@ -197,7 +197,7 @@ export class Service {
       withinHardConstraintsPercent: searches ? 100 : null,
       likes: f.rows.find(r => r.value === 1)?.n ?? 0, dislikes: f.rows.find(r => r.value === -1)?.n ?? 0,
       outings: { done, missed, donePercent: ratio(done, done + missed) },
-      actions: { routeOpen: k('route_open').n, sourceOpen: k('source_open').n, share: k('share').n } };
+      actions: { routeOpen: k('route_open').n, sourceOpen: k('source_open').n, bookingOpen: k('booking_open').n, share: k('share').n } };
   }
   async rate(u: Identity, eventId: string, value: number) {
     await this.db.insert(feedback).values({ userId: u.id, eventId, value }).onConflictDoUpdate({ target: [feedback.userId, feedback.eventId], set: { value, updatedAt: new Date() } });
