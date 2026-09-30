@@ -7,7 +7,7 @@ import type { Event, Member, Preferences, Candidate, SearchResult } from '../../
 import { DemoEventProvider, DemoRouteProvider } from '../providers/demo.js';
 import { KudaGoProvider } from '../providers/kudago.js';
 import { YandexRouteProvider } from '../providers/yandex.js';
-import { recommend } from '../recommendation/engine.js';
+import { recommend, matchesInterests } from '../recommendation/engine.js';
 import { AppError } from '../errors.js';
 export type Identity = { id: string; name: string; maxId?: number };
 export class Service {
@@ -58,7 +58,8 @@ export class Service {
     const rows = ids.length ? await this.database.pool.query(`SELECT e.payload FROM events e JOIN venues v ON e.venue_id=v.id WHERE e.id=ANY($1) AND ST_DWithin(v.location,ST_SetSRID(ST_MakePoint($2,$3),4326)::geography,60000) ORDER BY ST_Distance(v.location,ST_SetSRID(ST_MakePoint($2,$3),4326)::geography), e.id`, [ids, lon, lat]) : { rows: [] };
     let candidates = rows.rows.map(r => r.payload as Event);
     if (mode === 'live') {
-      candidates = candidates.filter(e => e.priceKnown && e.priceMax !== null && members.every(m => e.priceMax! + m.preferences!.transportBudget <= m.preferences!.budget && e.ageRestriction <= m.preferences!.age && !e.categories.some(c => m.preferences!.excludedCategories.includes(c as any)) && (e.flexible ? Math.max(Date.parse(e.startAt), Date.parse(m.preferences!.availableFrom)) + e.durationMinutes * 60000 <= Math.min(Date.parse(e.endAt), Date.parse(m.preferences!.availableTo)) : Date.parse(e.startAt) >= Date.parse(m.preferences!.availableFrom) && Date.parse(e.endAt) <= Date.parse(m.preferences!.availableTo)))).slice(0, this.config.LIVE_CANDIDATES);
+      // Routes are spent only on events of the chosen interests; the rest are nearest-first as before.
+      candidates = candidates.filter(e => matchesInterests(e, members) && e.priceKnown && e.priceMax !== null && members.every(m => e.priceMax! + m.preferences!.transportBudget <= m.preferences!.budget && e.ageRestriction <= m.preferences!.age && !e.categories.some(c => m.preferences!.excludedCategories.includes(c as any)) && (e.flexible ? Math.max(Date.parse(e.startAt), Date.parse(m.preferences!.availableFrom)) + e.durationMinutes * 60000 <= Math.min(Date.parse(e.endAt), Date.parse(m.preferences!.availableTo)) : Date.parse(e.startAt) >= Date.parse(m.preferences!.availableFrom) && Date.parse(e.endAt) <= Date.parse(m.preferences!.availableTo)))).slice(0, this.config.LIVE_CANDIDATES);
       notices.push(`Реальный поиск проверяет ${candidates.length} ближайших подходящих событий: до ${candidates.length * 2} запросов к Яндексу на человека, повторные маршруты берутся из кэша. Дневной предел — ${this.config.YANDEX_DAILY_LIMIT}.`);
     }
     const t1 = Date.now(), result = await recommend(candidates, members, mode === 'demo' ? this.demoRoute : this.yandex, notices);

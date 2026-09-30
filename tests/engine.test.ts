@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { commonWindow, evaluate, recommend } from '../apps/api/src/recommendation/engine.js';
-import { parsePrice } from '../apps/api/src/providers/kudago.js';
+import { parsePrice, mapCategories } from '../apps/api/src/providers/kudago.js';
 import { event, member, pref, testDate, travel } from './fixtures.js';
 describe('Выполнимость — сценарии A–G', () => {
   it('A: возвращает выполнимое событие с дорогой обратно и запасом', () => { const r = evaluate(event, [member()], [travel]); expect(r.candidate?.members[0].returnAt).toBe(`${testDate}T17:30:00.000Z`); expect(r.candidate?.totalPrice).toBe(650); });
@@ -26,6 +26,18 @@ describe('Выполнимость — сценарии A–G', () => {
       if (r.candidate) { expect(budget).toBeGreaterThanOrEqual(650); expect(out).toBeLessThanOrEqual(20); expect(inbound).toBeLessThanOrEqual(30); expect(Date.parse(r.candidate.members[0].returnAt)).toBeLessThanOrEqual(Date.parse(m.preferences!.availableTo)); }
     }
   });
+});
+describe('Фильтр интересов', () => {
+  it('Выбранные интересы отсекают другие категории', () => { expect(evaluate(event, [member({ categories: ['sport'] })], [travel]).reasons).toContain('Не из выбранных интересов'); expect(evaluate(event, [member({ categories: ['games', 'sport'] })], [travel]).candidate).toBeDefined(); });
+  it('Без выбранных интересов подходит любая категория', () => expect(evaluate(event, [member({ categories: [] })], [travel]).candidate).toBeDefined());
+  it('В компании достаточно интереса одного участника', () => expect(evaluate(event, [member({ categories: ['sport'] }), member({ categories: ['games'] }, 'Друг')], [travel, travel]).candidate).toBeDefined());
+  it('Пустая выдача из-за интересов предлагает показать все категории', async () => { const r = await recommend([event], [member({ categories: ['sport'] })], { getRoute: async () => travel }); expect(r.results).toEqual([]); expect(r.compromises[0]).toMatchObject({ field: 'categories', count: 1 }); });
+});
+describe('Категории KudaGo', () => {
+  it('Квесты — игры, вечеринки — музыка, экскурсии — прогулки', () => { expect(mapCategories(['quest'], [])).toEqual(['games']); expect(mapCategories(['party'], [])).toEqual(['music']); expect(mapCategories(['tour'], [])).toEqual(['walk']); });
+  it('Спорт и еда определяются по тегам', () => { expect(mapCategories(['other'], ['йога', 'на свежем воздухе'])).toContain('sport'); expect(mapCategories(['festival'], ['гастрономия'])).toEqual(['culture', 'food']); });
+  it('Слова внутри других слов не срабатывают', () => expect(mapCategories(['education'], ['урок истории', 'день победы', 'среда'])).toEqual(['culture']));
+  it('Неизвестное — культура', () => expect(mapCategories(['stock'], [])).toEqual(['culture']));
 });
 describe('Цена из внешнего источника', () => {
   it.each([['650 рублей', false, 650], ['1 200 ₽', false, 1200], ['от 500 до 900 рублей', false, 900], ['', true, 0], ['от 500 рублей', false, null], ['500 ₽ + обязательный депозит', false, null], ['бесплатно для детей', false, null], ['', false, null]])('%s', (text, free, max) => expect(parsePrice(String(text), Boolean(free)).max).toBe(max));

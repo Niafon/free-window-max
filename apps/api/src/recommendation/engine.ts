@@ -12,8 +12,12 @@ export function commonWindow(members: Member[]) {
   const from = Math.max(...ready.map(p => Date.parse(p.availableFrom))), to = Math.min(...ready.map(p => Date.parse(p.availableTo)));
   return { from, to };
 }
+// Chosen interests are a filter, not just a ranking hint. In a company an event must match someone's interests.
+export function wantedCategories(members: Member[]) { return new Set<string>(members.flatMap(m => m.preferences!.categories)); }
+export function matchesInterests(event: Event, members: Member[]) { const wanted = wantedCategories(members); return !wanted.size || event.categories.some(c => wanted.has(c)); }
 export function evaluate(event: Event, members: Member[], routes: Travel[]): { candidate?: Candidate; reasons: string[] } {
   const reasons = new Set<string>();
+  if (!matchesInterests(event, members)) reasons.add('Не из выбранных интересов');
   if (!event.priceKnown || event.priceMax === null) reasons.add('Цена не подтверждена');
   if (event.availability === 'sold_out') reasons.add('Нет свободных мест');
   if (!Number.isFinite(Date.parse(event.startAt)) || !Number.isFinite(Date.parse(event.endAt)) || Date.parse(event.endAt) <= Date.parse(event.startAt)) reasons.add('Нет точного расписания');
@@ -95,6 +99,11 @@ export async function recommend(events: Event[], members: Member[], provider: Ro
       { field: 'budget', values: [100, 200, 300, 500, 1000], label: (v: number) => `Бюджет каждого +${v} ₽` },
       { field: 'availableTo', values: [15, 30, 45, 60, 90], label: (v: number) => `Вернуться на ${v} мин позже` },
     ];
+    if (wantedCategories(members).size) {
+      const anyCategory = members.map(m => ({ ...m, preferences: { ...m.preferences!, categories: [] } }));
+      const count = evaluated.filter(({ event, routes }) => evaluate(event, anyCategory, routes).candidate).length;
+      if (count) base.compromises.push({ field: 'categories', value: 0, count, label: 'Показать все категории' });
+    }
     for (const rule of rules) for (const value of rule.values) {
       const relaxed = members.map(m => { const p = { ...m.preferences! }; if (rule.field === 'availableTo') p.availableTo = iso(Date.parse(p.availableTo) + value * minute); else if (rule.field === 'budget') p.budget += value; else p.maxTravelMinutes += value; return { ...m, preferences: p }; });
       const count = evaluated.filter(({ event, routes }) => evaluate(event, relaxed, routes).candidate).length;
