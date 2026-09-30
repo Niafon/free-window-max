@@ -21,6 +21,8 @@ export interface Event {
   isFree: boolean; availability: 'available' | 'unknown' | 'sold_out'; venueId: string; venue: string;
   address: string; latitude: number; longitude: number; sourceUrl: string | null; imageUrl: string | null;
   sourceUpdatedAt: string; sourcePublishedAt?: string; demo: boolean; accent: string;
+  // Where the user books or buys a ticket; null for test data (booking is only simulated) or when the source has no page.
+  bookingUrl: string | null;
   // 'end': the source gave only a start time; 'hours': a free visit within the place's opening hours.
   estimate?: 'end' | 'hours';
 }

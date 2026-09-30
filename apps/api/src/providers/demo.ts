@@ -11,7 +11,7 @@ export class DemoEventProvider implements EventProvider {
       startAt: `${date}T${e.start}:00+03:00`, endAt: `${date}T${e.end}:00+03:00`, flexible: !!e.flexible,
       durationMinutes: e.duration, priceMin: e.price, priceMax: e.price, priceKnown: e.price !== null, isFree: e.price === 0,
       availability: e.availability === 'sold_out' ? 'sold_out' : 'available', venueId: `demo-${e.id}`, venue: e.venue,
-      address: e.address, latitude: e.lat, longitude: e.lon, sourceUrl: null, imageUrl: null,
+      address: e.address, latitude: e.lat, longitude: e.lon, sourceUrl: null, bookingUrl: null, imageUrl: null,
       sourceUpdatedAt: '2026-09-30T00:00:00+03:00', demo: true, accent: e.accent }));
     this.last.clear(); events.forEach(e => this.last.set(e.id, e));
     return { events, notices: ['Тестовые данные: названия площадок, цены, расписание и места смоделированы; бронирование недоступно.'] };

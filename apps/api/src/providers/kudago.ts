@@ -122,7 +122,8 @@ export class KudaGoProvider implements EventProvider {
       const base = { provider: 'kudago' as const, externalId: String(row.id), title: String(row.title), description: String(row.description ?? '').replace(/<[^>]*>/g, '').slice(0, 1200),
         categories: mapCategories(rawCats, row.tags ?? []), tags: row.tags ?? [], ageRestriction: parseInt(row.age_restriction || '0') || 0,
         priceMin: price.min, priceMax: price.max, priceKnown: price.max !== null, isFree: !!row.is_free, availability: 'unknown' as const, venueId: `kudago-${row.place.id}`, venue: row.place.title ?? 'Площадка KudaGo', address: row.place.address ?? 'Адрес уточните у источника',
-        latitude: coords.lat, longitude: coords.lon, sourceUrl, imageUrl: image, sourceUpdatedAt: new Date().toISOString(), sourcePublishedAt: row.publication_date ? new Date(row.publication_date * 1000).toISOString() : undefined, demo: false, accent: 'lavender' };
+        // KudaGo has no organiser link: its event page is where tickets and registration are listed (verified against the API).
+        latitude: coords.lat, longitude: coords.lon, sourceUrl, bookingUrl: sourceUrl, imageUrl: image, sourceUpdatedAt: new Date().toISOString(), sourcePublishedAt: row.publication_date ? new Date(row.publication_date * 1000).toISOString() : undefined, demo: false, accent: 'lavender' };
       let visit = false;
       for (const [index, date] of (row.dates ?? []).entries()) {
         if (!date.start) continue;

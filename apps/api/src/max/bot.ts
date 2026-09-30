@@ -145,7 +145,7 @@ export function createBot(service: Service, config: Config) {
         const st = await state(u.id); if (st.startedAt) await service.database.pool.query('INSERT INTO metrics(kind,duration_ms) VALUES($1,$2)', ['time_to_select', Math.min(86400000, Date.now() - st.startedAt)]);
         // Ask about the outing two hours after it ends: the "Выход состоялся" pilot metric.
         await service.database.pool.query('INSERT INTO bot_followups(plan_id,user_id,event_id,title,due_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING', [plan.id, id, eventId, plan.candidate.event.title, new Date(Date.parse(plan.candidate.endAt) + 2 * 3600000)]);
-        await send(id, `План сохранён: ${plan.candidate.event.title}\n${dayLabel(plan.candidate.startAt)}, ${time(plan.candidate.startAt)}–${time(plan.candidate.endAt)}\n${plan.candidate.event.demo ? 'Демонстрационный план. ' : ''}Перед выходом проверь место и расписание. После события спрошу, как всё прошло.`, [[Keyboard.button.link('Открыть Яндекс Карты', plan.candidate.routeUrl)], [Keyboard.button.link('Позвать друга', `https://max.ru/:share?text=${encodeURIComponent('Пойдём вместе! ' + plan.shareUrl)}`)], appButton(`plan_${plan.id}`), [cb('Новый подбор', 'restart')]]); return;
+        await send(id, `План сохранён: ${plan.candidate.event.title}\n${dayLabel(plan.candidate.startAt)}, ${time(plan.candidate.startAt)}–${time(plan.candidate.endAt)}\n${plan.candidate.event.demo ? 'Тестовые данные: бронирование только имитируется, место не резервируется. ' : ''}Перед выходом проверь место и расписание. После события спрошу, как всё прошло.`, [...(plan.candidate.event.bookingUrl ? [[Keyboard.button.link('Забронировать на сайте события', plan.candidate.event.bookingUrl)]] : []), [Keyboard.button.link('Открыть Яндекс Карты', plan.candidate.routeUrl)], [Keyboard.button.link('Позвать друга', `https://max.ru/:share?text=${encodeURIComponent('Пойдём вместе! ' + plan.shareUrl)}`)], appButton(`plan_${plan.id}`), [cb('Новый подбор', 'restart')]]); return;
       }
       if (payload.startsWith('went:')) {
         const [, planId, value] = payload.split(':');
@@ -196,4 +196,24 @@ export function createBot(service: Service, config: Config) {
   }
   bot.on(['bot_started', 'message_created', 'message_callback'], ctx => process(ctx.update));
   return { bot, process, followups };
+}
+// Brings the MAX side of the bot to the state the product expects, with the token that already lives in the
+// server .env: the command menu, a bot name that matches BOT_USERNAME (the open_app buttons and invite links use it)
+// and, in webhook mode, a subscription to PUBLIC_URL/max/webhook. Runs on every start; secrets are never logged.
+export async function configureBot(bot: Bot, config: Config, log: (level: 'info' | 'warn', data: Record<string, unknown>, message: string) => void) {
+  try {
+    await bot.api.setMyCommands([{ name: 'start', description: 'Подобрать досуг под свободное время' }, { name: 'help', description: 'Как написать запрос и открыть мини-приложение' }]);
+    const me = await bot.api.getMyInfo();
+    if (config.BOT_USERNAME && me.username !== config.BOT_USERNAME) log('warn', { code: 'MAX_BOT_USERNAME_MISMATCH', actual: me.username, configured: config.BOT_USERNAME }, 'BOT_USERNAME differs from the token owner: app buttons and invites will open another bot');
+    let webhook = 'not used';
+    if (config.MAX_MODE === 'webhook') {
+      const url = `${config.PUBLIC_URL}/max/webhook`;
+      const subscribed = (await bot.api.getSubscriptions()).some(s => s.url === url);
+      if (!subscribed) await bot.api.subscribe(url, config.MAX_WEBHOOK_SECRET, ['bot_started', 'message_created', 'message_callback']);
+      webhook = subscribed ? 'already subscribed' : 'subscribed now';
+    }
+    log('info', { username: me.username, commands: ['start', 'help'], webhook }, 'MAX bot configured');
+  } catch (error: any) {
+    log('warn', { code: 'MAX_SETUP_FAILED', status: error?.status, apiCode: error?.code }, 'MAX bot setup failed; the bot keeps working with its previous settings');
+  }
 }
