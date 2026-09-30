@@ -28,4 +28,12 @@ describe('События KudaGo', () => {
     expect(events.find(e => e.externalId === '1')?.imageUrl).toBe('https://media.kudago.com/images/event/a.jpg');
     expect(events.find(e => e.externalId === '2')?.imageUrl).toBeNull();
   });
+  it('Грузит день целиком постранично, повторный поиск в тот же день — из кэша', async () => {
+    const p = pref(), start = Date.parse(p.availableFrom) / 1000 + 1800;
+    const row = (id: number) => ({ id, title: `Событие ${id}`, categories: [], dates: [{ start, end: start + 3600 }], price: '', is_free: true, place: { id, title: 'Площадка', coords: { lat: 55.7, lon: 37.6 } } });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify({ count: 150, results: new URL(String(url)).searchParams.get('page') === '1' ? [row(1)] : [row(2)] })));
+    const provider = new KudaGoProvider();
+    const first = await provider.searchEvents(p); expect(first.events.map(e => e.externalId).sort()).toEqual(['1', '2']); expect(fetch).toHaveBeenCalledTimes(2);
+    await provider.searchEvents({ ...p, availableTo: new Date(Date.parse(p.availableTo) - 600000).toISOString() }); expect(fetch).toHaveBeenCalledTimes(2);
+  });
 });

@@ -2,6 +2,7 @@ import { readConfig } from './config.js';
 import { createDatabase, migrate, cleanup } from './db/index.js';
 import { buildApp } from './app.js';
 import { createBot } from './max/bot.js';
+import { moscowDay } from '../../../packages/contracts/parse.js';
 const config = readConfig();
 const database = createDatabase(config.DATABASE_URL);
 await migrate(database); await cleanup(database);
@@ -13,6 +14,10 @@ if (integration && config.MAX_MODE === 'polling') {
   integration.bot.catch(() => app.log.error({ code: 'MAX_API_ERROR' }, 'Bot update failed'));
   void integration.bot.start({ mode: 'polling', options: { allowedUpdates: ['bot_started', 'message_created', 'message_callback'], retry: true } }).catch(() => app.log.error({ code: 'MAX_API_ERROR' }, 'Polling unavailable'));
 }
+// Keep today's and tomorrow's KudaGo events hot so a live search does not wait for the slow source.
+const warm = () => void service.live.warm([moscowDay(0), moscowDay(1)]);
+if (config.YANDEX_MAPS_KEY) warm();
+const warmer = config.YANDEX_MAPS_KEY ? setInterval(warm, 9 * 60000) : undefined; warmer?.unref();
 const timer = setInterval(() => void cleanup(database).catch(() => app.log.error({ code: 'CLEANUP_ERROR' })), 3600000); timer.unref();
 const followups = integration ? setInterval(() => void integration.followups().catch(() => app.log.error({ code: 'MAX_API_ERROR' }, 'Follow-up delivery failed')), 60000) : undefined; followups?.unref();
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { clearInterval(timer); clearInterval(followups); integration?.bot.stopPolling(); await app.close(); await database.pool.end(); process.exit(0); });
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { clearInterval(timer); clearInterval(warmer); clearInterval(followups); integration?.bot.stopPolling(); await app.close(); await database.pool.end(); process.exit(0); });
