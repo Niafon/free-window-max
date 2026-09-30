@@ -61,3 +61,4 @@ dialog[open]{animation:sheet-in .3s cubic-bezier(.2,.8,.2,1)}dialog[open]::backd
 @media(max-width:680px){dialog[open]{animation:sheet-up .34s cubic-bezier(.2,.8,.2,1)}.event-card:hover{transform:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 .stats{margin-bottom:18px}.stats h3 .small{display:block;font-weight:400;margin-top:4px}.stat-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}.stat{background:#faf8fd;border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:4px;animation:fade-up .4s backwards}.stat strong{font-size:20px;color:#6b50d8;font-weight:600}.stat span{font-size:11px;color:#8b779d;line-height:1.3}@media(max-width:950px){.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+footer{justify-content:center}
