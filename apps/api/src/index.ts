@@ -14,4 +14,5 @@ if (integration && config.MAX_MODE === 'polling') {
   void integration.bot.start({ mode: 'polling', options: { allowedUpdates: ['bot_started', 'message_created', 'message_callback'], retry: true } }).catch(() => app.log.error({ code: 'MAX_API_ERROR' }, 'Polling unavailable'));
 }
 const timer = setInterval(() => void cleanup(database).catch(() => app.log.error({ code: 'CLEANUP_ERROR' })), 3600000); timer.unref();
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { clearInterval(timer); integration?.bot.stopPolling(); await app.close(); await database.pool.end(); process.exit(0); });
+const followups = integration ? setInterval(() => void integration.followups().catch(() => app.log.error({ code: 'MAX_API_ERROR' }, 'Follow-up delivery failed')), 60000) : undefined; followups?.unref();
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { clearInterval(timer); clearInterval(followups); integration?.bot.stopPolling(); await app.close(); await database.pool.end(); process.exit(0); });

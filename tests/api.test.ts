@@ -12,7 +12,7 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
   beforeAll(async () => {
     if (!new URL(url!).pathname.endsWith('_test')) throw new Error('TEST_DATABASE_URL must end in _test');
     await migrate(database);
-    await database.pool.query('TRUNCATE session_members,planning_sessions,searches,plans,users,events,venues,feedback,bot_dialogs,bot_updates,provider_quota,metrics CASCADE');
+    await database.pool.query('TRUNCATE session_members,planning_sessions,searches,plans,users,events,venues,feedback,bot_dialogs,bot_updates,bot_followups,provider_quota,metrics CASCADE');
     ctx = await buildApp(readConfig({ DEMO_AUTH: 'true', DATABASE_URL: url, BOT_TOKEN: 'unit-test-only', MAX_WEBHOOK_SECRET: 'local-test-webhook-secret-32-characters' }), database, true);
     await ctx.app.ready();
     const login = async (name: string) => { const r = await ctx.app.inject({ method: 'POST', url: '/api/v1/auth/demo', payload: { name } }); expect(r.statusCode).toBe(200); return r.cookies[0].value; };
@@ -77,7 +77,7 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
     vi.spyOn(integration.bot.api, 'answerOnCallback').mockResolvedValue({ success: true } as any);
     const start = { update_type: 'bot_started', timestamp: Date.now(), user: { user_id: 456, first_name: 'Тест' } };
     await integration.process(start); const count = sent.length; await integration.process(start); expect(sent).toHaveLength(count);
-    for (const payload of ['window:evening', 'budget:1000', 'origin:0', 'travel:30']) await integration.process({ update_type: 'message_callback', callback: { user: start.user, callback_id: randomUUID(), payload } });
+    for (const payload of ['window:evening', 'budget:1000', 'origin:0', 'travel:30', 'interest:any']) await integration.process({ update_type: 'message_callback', callback: { user: start.user, callback_id: randomUUID(), payload } });
     expect(sent.some(s => s.text.startsWith('Успеешь'))).toBe(true);
     expect(sent.every(s => !s.extra || s.extra.attachments[0].payload.buttons.length > 0)).toBe(true);
     } finally { clock.mockRestore(); }
@@ -96,8 +96,35 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
     await say('завтра 18:30–21:30'); expect(sent.at(-1).text).toContain('Сколько готов потратить');
     await tap('budget:custom'); await say('много'); expect(sent.at(-1).text).toContain('целое число');
     await say('1500 ₽'); expect(sent.at(-1).text).toContain('Откуда выходим');
-    await tap('origin:0'); await tap('travel:60');
+    await tap('origin:0'); await tap('travel:60'); await tap('interest:games');
     expect(sent.some(s => s.text.startsWith('Успеешь'))).toBe(true);
+    expect(sent.every(s => !s.extra || s.extra.attachments[0].payload.buttons.length > 0)).toBe(true);
+    } finally { clock.mockRestore(); }
+  });
+  it('Бот понимает запрос текстом, «Удиви меня» и спрашивает, удалось ли сходить', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse(`${testDate}T10:00:00+03:00`));
+    try {
+    const integration = createBot(ctx.service, readConfig({ BOT_TOKEN: 'unit-test-only' })); const sent: any[] = [];
+    vi.spyOn(integration.bot.api, 'sendMessageToUser').mockImplementation(async (_id, text, extra) => { sent.push({ text, extra }); return {} as any; });
+    vi.spyOn(integration.bot.api, 'answerOnCallback').mockResolvedValue({ success: true } as any);
+    const user = { user_id: 4242, first_name: 'Запрос' };
+    const tap = (payload: string) => integration.process({ update_type: 'message_callback', callback: { user, callback_id: randomUUID(), payload } });
+    const say = (text: string) => integration.process({ update_type: 'message_created', message: { sender: user, body: { mid: randomUUID(), text } } });
+    await say('сегодня вечером до 1000, игры, не кино, не дальше 30 минут');
+    expect(sent[0].text).toContain('Понял'); expect(sent[0].text).toContain('до 1000 ₽'); expect(sent.at(-1).text).toContain('Откуда выходим');
+    await tap('origin:0');
+    const card = sent.find(s => s.text.includes('🕒')); expect(card).toBeDefined();
+    const pick = card.extra.attachments[0].payload.buttons[0][0].payload as string; expect(pick).toMatch(/^pick:/);
+    await tap('surprise'); expect(sent.at(-2).text).toContain('🕒');
+    await tap(pick);
+    const row = (await ctx.service.database.pool.query('SELECT plan_id,due_at FROM bot_followups WHERE user_id=4242')).rows[0]; expect(row).toBeDefined();
+    clock.mockReturnValue(Date.parse(row.due_at) + 60000);
+    await ctx.service.database.pool.query("UPDATE bot_followups SET due_at=now() - interval '1 minute' WHERE user_id=4242");
+    await integration.followups(); await integration.followups();
+    expect(sent.filter(s => s.text.startsWith('Удалось сходить')).length).toBe(1);
+    await tap(`went:${row.plan_id}:1`); expect(sent.at(-1).text).toContain('Как тебе');
+    await tap(sent.at(-1).extra.attachments[0].payload.buttons[0][0].payload); expect(sent.at(-1).text).toContain('Спасибо');
+    expect((await ctx.service.database.pool.query("SELECT count(*)::int AS n FROM metrics WHERE kind='outing_done'")).rows[0].n).toBe(1);
     expect(sent.every(s => !s.extra || s.extra.attachments[0].payload.buttons.length > 0)).toBe(true);
     } finally { clock.mockRestore(); }
   });

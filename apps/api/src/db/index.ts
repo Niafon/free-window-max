@@ -25,8 +25,10 @@ export async function migrate({ db }: Database) {
     CREATE TABLE IF NOT EXISTS bot_updates(id text PRIMARY KEY, expires_at timestamptz NOT NULL);
     CREATE TABLE IF NOT EXISTS metrics(id bigserial PRIMARY KEY, kind text NOT NULL, duration_ms integer, result_count integer, created_at timestamptz NOT NULL DEFAULT now());
     CREATE TABLE IF NOT EXISTS provider_quota(day date PRIMARY KEY, used integer NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS bot_followups(plan_id uuid PRIMARY KEY, user_id bigint NOT NULL, event_id text NOT NULL, title text NOT NULL, due_at timestamptz NOT NULL, sent_at timestamptz, answer boolean);
+    CREATE INDEX IF NOT EXISTS bot_followups_due_idx ON bot_followups(due_at) WHERE sent_at IS NULL;
   `));
 }
 export async function cleanup({ pool }: Database) {
-  await pool.query(`DELETE FROM plans WHERE created_at < now() - interval '24 hours'; DELETE FROM searches WHERE expires_at < now(); DELETE FROM planning_sessions WHERE expires_at < now(); DELETE FROM bot_dialogs WHERE updated_at < now() - interval '24 hours'; DELETE FROM bot_updates WHERE expires_at < now(); DELETE FROM feedback WHERE updated_at < now() - interval '30 days'; DELETE FROM users WHERE last_seen < now() - interval '30 days'; DELETE FROM metrics WHERE created_at < now() - interval '30 days'; DELETE FROM events WHERE updated_at < now() - interval '1 day';`);
+  await pool.query(`DELETE FROM plans WHERE created_at < now() - interval '24 hours'; DELETE FROM searches WHERE expires_at < now(); DELETE FROM planning_sessions WHERE expires_at < now(); DELETE FROM bot_dialogs WHERE updated_at < now() - interval '24 hours'; DELETE FROM bot_updates WHERE expires_at < now(); DELETE FROM bot_followups WHERE due_at < now() - interval '3 days'; DELETE FROM feedback WHERE updated_at < now() - interval '30 days'; DELETE FROM users WHERE last_seen < now() - interval '30 days'; DELETE FROM metrics WHERE created_at < now() - interval '30 days'; DELETE FROM events WHERE updated_at < now() - interval '1 day';`);
 }
