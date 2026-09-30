@@ -14,6 +14,7 @@ describe('Выполнимость — сценарии A–G', () => {
     const e = { ...event, ...(kind === 'unknown-price' ? { priceKnown: false, priceMax: null } : {}), ...(kind === 'sold-out' ? { availability: 'sold_out' as const } : {}), ...(kind === 'age' ? { ageRestriction: 21 } : {}) };
     expect(evaluate(e, [member(kind === 'excluded' ? { excludedCategories: ['games'] } : {})], [travel]).candidate).toBeUndefined();
   });
+  it('Оценочная длительность видна в предупреждениях', () => expect(evaluate({ ...event, estimate: 'end' }, [member()], [travel]).candidate?.warnings[0]).toContain('это оценка'));
   it('Свободное посещение учитывает закрытие', () => { expect(evaluate({ ...event, flexible: true, durationMinutes: 90 }, [member()], [travel]).reasons).toContain('Не хватает времени до закрытия'); });
   it('F: при сбое маршрутизатора нет выдуманного времени', async () => { await expect(recommend([event], [member()], { getRoute: async () => { throw new Error('Timeout'); } })).rejects.toMatchObject({ code: 'ROUTE_PROVIDER_ERROR' }); });
   it('G: основной сценарий не использует LLM и детерминирован', async () => { const provider = { getRoute: async () => travel }; const a = await recommend([event], [member()], provider); const b = await recommend([event], [member()], provider); expect(a.results).toEqual(b.results); });

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { YandexRouteProvider } from '../apps/api/src/providers/yandex.js';
-import { KudaGoProvider } from '../apps/api/src/providers/kudago.js';
+import { KudaGoProvider, openingHours, parsePrice } from '../apps/api/src/providers/kudago.js';
 import { event, pref } from './fixtures.js';
 afterEach(() => vi.restoreAllMocks());
 describe('Маршруты Яндекса', () => {
@@ -33,7 +33,34 @@ describe('События KudaGo', () => {
     const row = (id: number) => ({ id, title: `Событие ${id}`, categories: [], dates: [{ start, end: start + 3600 }], price: '', is_free: true, place: { id, title: 'Площадка', coords: { lat: 55.7, lon: 37.6 } } });
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify({ count: 150, results: new URL(String(url)).searchParams.get('page') === '1' ? [row(1)] : [row(2)] })));
     const provider = new KudaGoProvider();
-    const first = await provider.searchEvents(p); expect(first.events.map(e => e.externalId).sort()).toEqual(['1', '2']); expect(fetch).toHaveBeenCalledTimes(2);
-    await provider.searchEvents({ ...p, availableTo: new Date(Date.parse(p.availableTo) - 600000).toISOString() }); expect(fetch).toHaveBeenCalledTimes(2);
+    const first = await provider.searchEvents(p); expect(first.events.map(e => e.externalId).sort()).toEqual(['1', '2']); expect(fetch).toHaveBeenCalledTimes(3); // 2 pages + opening hours
+    await provider.searchEvents({ ...p, availableTo: new Date(Date.parse(p.availableTo) - 600000).toISOString() }); expect(fetch).toHaveBeenCalledTimes(3);
+  });
+});
+describe('Часы работы и оценки KudaGo', () => {
+  it.each([
+    ['ежедневно 12:00–19:00', 2, { open: '12:00', close: '19:00' }],
+    ['пн–пт 12:00–22:00, сб, вс 10:00–22:00', 5, { open: '10:00', close: '22:00' }],
+    ['пн–пт 12:00–22:00, сб, вс 10:00–22:00', 0, { open: '12:00', close: '22:00' }],
+    ['вт–вс 11:00–20:00', 0, null],
+    ['пт–вт 10:00–18:00', 1, { open: '10:00', close: '18:00' }],
+    ['ср 10:00–21:00; чт–вс 10:00–24:00', 4, { open: '10:00', close: '23:59' }],
+    ['по предварительной записи', 3, null],
+  ])('%s, день %i', (text, weekday, expected) => expect(openingHours(String(text), Number(weekday))).toEqual(expected));
+  it('Цена с льготами остаётся точной', () => expect(parsePrice('500 рублей, есть льготы', false)).toEqual({ min: 500, max: 500 }));
+  it('Событие без окончания получает оценку, выставка — свободное посещение по часам площадки', async () => {
+    const p = pref(), day = p.availableFrom.slice(0, 10), start = Date.parse(`${day}T19:00:00+03:00`) / 1000;
+    const place = (id: number) => ({ id, title: `Площадка ${id}`, address: 'Москва', coords: { lat: 55.7, lon: 37.6 } });
+    const rows = [
+      { id: 10, title: 'Концерт', categories: ['concert'], dates: [{ start, end: start }], price: '800 рублей', is_free: false, place: place(1) },
+      { id: 11, title: 'Выставка', categories: ['exhibition'], dates: [{ start: start - 30 * 86400, end: start + 30 * 86400 }], price: '', is_free: true, place: place(2) },
+      { id: 12, title: 'Подарочный сертификат', categories: ['stock'], dates: [{ start: start - 30 * 86400, end: start + 30 * 86400 }], price: '', is_free: true, place: place(2) },
+    ];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/places/') ? { results: [{ id: 2, timetable: 'ежедневно 10:00–22:00' }] } : { count: 3, results: rows })));
+    const { events } = await new KudaGoProvider().searchEvents(p);
+    const concert = events.find(e => e.externalId === '10')!, show = events.find(e => e.externalId === '11')!;
+    expect(concert).toMatchObject({ estimate: 'end', durationMinutes: 120, flexible: false }); expect(Date.parse(concert.endAt) - Date.parse(concert.startAt)).toBe(120 * 60000);
+    expect(show).toMatchObject({ estimate: 'hours', flexible: true, durationMinutes: 60, startAt: new Date(`${day}T10:00:00+03:00`).toISOString(), endAt: new Date(`${day}T22:00:00+03:00`).toISOString() });
+    expect(events.some(e => e.externalId === '12')).toBe(false);
   });
 });

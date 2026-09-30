@@ -21,6 +21,8 @@ export interface Event {
   isFree: boolean; availability: 'available' | 'unknown' | 'sold_out'; venueId: string; venue: string;
   address: string; latitude: number; longitude: number; sourceUrl: string | null; imageUrl: string | null;
   sourceUpdatedAt: string; sourcePublishedAt?: string; demo: boolean; accent: string;
+  // 'end': the source gave only a start time; 'hours': a free visit within the place's opening hours.
+  estimate?: 'end' | 'hours';
 }
 export interface Travel { outbound: number; inbound: number; mode: 'transit'; modelled: boolean; provider: string; }
 export interface Member { userId: string; name: string; preferences: Preferences | null; }
