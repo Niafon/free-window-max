@@ -4,7 +4,7 @@ import type { Config } from '../config.js';
 import { Service, type Identity } from '../search/service.js';
 import { preferencesSchema, presets, categoryNames, categories } from '../../../../packages/contracts/index.js';
 import { AppError } from '../errors.js';
-import { moscowDay, parseRequest, parseWindow } from './parse.js';
+import { moscowDay, parseRequest, parseWindow } from '../../../../packages/contracts/parse.js';
 type Category = typeof categories[number];
 type Geo = { lat: number; lon: number };
 type Start = { origin?: number; geo?: Geo };

@@ -1,4 +1,4 @@
-import type { categories } from '../../../../packages/contracts/index.js';
+import type { categories } from './index.js';
 type Category = typeof categories[number];
 // Rule-based parsing of a chat request (TZ §15): the main scenario never depends on an LLM.
 export type ParsedRequest = { from?: string; to?: string; budget?: number; maxTravelMinutes?: number; categories: Category[]; excludedCategories: Category[]; partySize?: number };

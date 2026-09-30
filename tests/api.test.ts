@@ -51,7 +51,7 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
       expect(notes.some(n => n.text.includes(text) && (toOwner ? n.ids.includes(owner) : !n.ids.includes(owner) && n.ids.length === 1))).toBe(true);
     ctx.service.notify = async () => {};
   });
-  it('Повторное присоединение идемпотентно; чужие точные параметры скрыты', async () => { const r = await call('POST', `/api/v1/sessions/${sid}/join`, undefined, bob); expect(r.json().members).toHaveLength(2); expect(r.json().members.find((m: any) => m.name === 'Аня').preferences).toBeNull(); });
+  it('Повторное присоединение идемпотентно; чужие точные параметры скрыты', async () => { const r = await call('POST', `/api/v1/sessions/${sid}/join`, undefined, bob); expect(r.json().members).toHaveLength(2); const anya = r.json().members.find((m: any) => m.name === 'Аня'); expect(anya.preferences).toBeNull(); expect(anya.window).toEqual({ from: pref().availableFrom, to: pref().availableTo }); expect(JSON.stringify(anya)).not.toContain('37.48'); });
   it('Выбор и открытие реального плана не повторяют расчёт маршрутов и не сохраняют их', async () => {
     const original = (await call('GET', `/api/v1/search/${searchId}`)).json();
     const candidate = original.results[0]; candidate.event.demo = false;

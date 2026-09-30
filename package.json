@@ -33,6 +33,7 @@
     "drizzle-orm": "0.45.3",
     "fastify": "5.12.5",
     "fastify-type-provider-zod": "7.0.0",
+    "leaflet": "1.9.4",
     "lucide-react": "1.48.0",
     "pg": "8.23.0",
     "react": "19.2.8",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
+    "@types/leaflet": "1.9.20",
     "@types/node": "22.20.4",
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",

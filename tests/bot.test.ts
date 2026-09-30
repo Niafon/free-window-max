@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseWindow, parseRequest, moscowDay } from '../apps/api/src/max/parse.js';
+import { parseWindow, parseRequest, moscowDay } from '../packages/contracts/parse.js';
 const now = Date.parse('2026-09-30T10:00:00+03:00');
 describe('Окно из текста в чате', () => {
   it('Сегодня по умолчанию', () => expect(parseWindow('18:30–21:30', now)).toEqual({ from: '2026-09-30T18:30:00+03:00', to: '2026-09-30T21:30:00+03:00' }));

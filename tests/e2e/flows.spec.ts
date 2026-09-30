@@ -3,8 +3,13 @@ async function login(page: Page, name: string) { await page.goto('/'); await pag
 test('Одиночный поиск, карточка, выбор, оценка и состояния', async ({ page }, info) => {
   const exceptions: string[] = []; page.on('pageerror', e => exceptions.push(e.message));
   await login(page, 'Аня');
+  await page.getByRole('textbox', { name: 'Опиши вечер одной фразой' }).fill('до 1000, не дальше 30 минут, игры');
+  await page.getByRole('button', { name: 'Заполнить' }).click(); await expect(page.getByRole('status')).toContainText('Заполнил');
+  await expect(page.getByRole('spinbutton', { name: 'Бюджет на человека' })).toHaveValue('1000');
   await page.getByRole('button', { name: 'Найти варианты', exact: true }).click();
   await expect(page.getByRole('heading', { name: /идей, которые помещаются/ })).toBeVisible();
+  await expect(page.locator('.event-card .window-timeline').first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Карта' }).click(); await expect(page.locator('.results-map .map-pin').first()).toBeVisible(); await page.getByRole('tab', { name: 'Список' }).click();
   await page.screenshot({ path: `test-results/${info.project.name}-results.png`, fullPage: true });
   await page.getByRole('button', { name: 'Подробнее: Вечер настольных игр' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -35,6 +40,7 @@ test('Два пользователя проходят совместное пл
   await friend.getByRole('button', { name: 'Сохранить мои параметры' }).click();
   await expect(page.locator('.members').getByText('Борис', { exact: false })).toBeVisible({ timeout: 10000 });
   await expect(page.getByRole('button', { name: 'Найти общее окно' })).toBeEnabled({ timeout: 10000 });
+  await expect(page.locator('.group-windows')).toContainText('Общее окно');
   await page.getByRole('button', { name: 'Найти общее окно' }).click();
   await expect(page.getByRole('heading', { name: /идей, которые помещаются/ })).toBeVisible();
   await page.locator('.choose').first().click(); await page.getByRole('button', { name: 'Закрыть карточку' }).click();
