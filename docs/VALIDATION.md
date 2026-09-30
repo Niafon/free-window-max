@@ -5,7 +5,7 @@
 | Проверка | Результат |
 |---|---|
 | TypeScript strict / production build | Пройдено |
-| Unit + API/PostgreSQL/MAX mocks | 40 / 40 |
+| Unit + API/PostgreSQL/MAX mocks | 58 / 58 (Node 22, PostGIS 17 в контейнере на VPS и GitHub Actions) |
 | Playwright: solo + group, desktop + mobile viewport | 4 / 4 |
 | DATA-API.yaml на работающем HTTP-сервере | 19 / 19, обе роли и ошибки доступа |
 | Compose local / VPS syntax | Обе конфигурации проходят docker compose config --quiet |
@@ -16,8 +16,8 @@
 | Production dependency audit | На момент первоначальной установки 0 уязвимостей production-пакетов |
 | Docker Engine на машине | Ошибка Docker Desktop; контейнер независимо проверен на GitHub Ubuntu runner |
 | Docker в GitHub Actions | Чистая сборка 22 секунды без загрузки базового образа; полный compose stack healthy; 19 / 19 API-проверок |
-| MAX mobile/web с боевым HTTPS | Ожидает VPS, домен и настройку кабинета |
-| Нагрузочные p95 | Пока не измерены |
+| MAX mobile/web с боевым HTTPS | VPS https://77-91-95-175.sslip.io, бот отвечает через webhook в MAX web; кнопка mini app ждёт привязки адреса в кабинете бота |
+| Нагрузочные p95 (§24) | VPS 2 vCPU, отдельный экземпляр с тестовой БД, 10 параллельных клиентов, `scripts/bench.mjs`: `GET /api/v1/me` p95 23 мс (цель < 500), `GET /health` p95 13 мс, демо-поиск без внешних маршрутов p95 149 мс (цель < 1 с), 0 ответов 5xx. Полный live-поиск под нагрузкой не измерялся: квота Яндекса 100 запросов/сутки |
 | Полный dependency audit (включая dev) | 3 замечания: 1 low + 2 moderate в инструментах разработки; production audit: 0 |
 
 Браузерные проверки выполняют реальные действия двух независимых пользователей: приглашение → свои ограничения → общий результат → выбор. Скриншоты проверены визуально, горизонтального переполнения на мобильном размере нет. Платные интеграции в тестах отключены.
