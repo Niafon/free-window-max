@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { YandexRouteProvider } from '../apps/api/src/providers/yandex.js';
+import { KudaGoProvider } from '../apps/api/src/providers/kudago.js';
 import { event, pref } from './fixtures.js';
 afterEach(() => vi.restoreAllMocks());
 describe('Маршруты Яндекса', () => {
@@ -16,5 +17,15 @@ describe('Маршруты Яндекса', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ rows: [{ elements: [{ status: 'FAIL' }] }] })));
     const provider = new YandexRouteProvider('test-key'); const p = pref();
     await expect(provider.getRoute(p.origin, event, p.availableFrom, event.endAt)).rejects.toMatchObject({ code: 'ROUTE_PROVIDER_ERROR' });
+  });
+});
+describe('События KudaGo', () => {
+  it('Берёт фото только с медиасервера KudaGo', async () => {
+    const p = pref(), start = Date.parse(p.availableFrom) / 1000 + 1800;
+    const row = (id: number, image: string) => ({ id, title: `Событие ${id}`, description: '', categories: ['exhibition'], dates: [{ start, end: start + 3600 }], price: '500 рублей', is_free: false, place: { id, title: 'Площадка', address: 'Москва', coords: { lat: 55.7, lon: 37.6 } }, images: [{ image }] });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ results: [row(1, 'https://media.kudago.com/images/event/a.jpg'), row(2, 'https://evil.example/b.jpg')] })));
+    const { events } = await new KudaGoProvider().searchEvents(p);
+    expect(events.find(e => e.externalId === '1')?.imageUrl).toBe('https://media.kudago.com/images/event/a.jpg');
+    expect(events.find(e => e.externalId === '2')?.imageUrl).toBeNull();
   });
 });

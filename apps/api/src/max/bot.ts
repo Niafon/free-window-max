@@ -16,10 +16,13 @@ export function createBot(service: Service, config: Config) {
   const bot = new Bot(config.BOT_TOKEN, { clientOptions: { baseUrl: config.MAX_API_URL } });
   const live = !!config.YANDEX_MAPS_KEY;
   const cb = (text: string, payload: string) => Keyboard.button.callback(text, payload);
-  const keyboard = (rows: any[][]) => ({ attachments: [Keyboard.inlineKeyboard(rows)] });
   const appButton = (payload = '') => config.BOT_USERNAME && config.PUBLIC_URL.startsWith('https://') ? [Keyboard.button.openApp('Открыть ОКНО', config.BOT_USERNAME, undefined, payload)] : [];
   // MAX rejects an inline keyboard without buttons, so plain messages go without attachments.
-  const send = (id: number, text: string, rows: any[][] = []) => { const filled = rows.filter(r => r.length); return bot.api.sendMessageToUser(id, text, filled.length ? keyboard(filled) : undefined); };
+  // A photo is optional: if MAX cannot fetch it, the card is sent again without it.
+  const send = async (id: number, text: string, rows: any[][] = [], image?: string | null): Promise<unknown> => {
+    const filled = rows.filter(r => r.length), attachments: any[] = [...(image ? [{ type: 'image', payload: { url: image } }] : []), ...(filled.length ? [Keyboard.inlineKeyboard(filled)] : [])];
+    try { return await bot.api.sendMessageToUser(id, text, attachments.length ? { attachments } : undefined); } catch (error) { if (!image) throw error; return send(id, text, rows); }
+  };
   // Group session events are delivered to MAX members only; demo users have no chat.
   service.notify = async (userIds, text, sessionId) => {
     for (const uid of userIds) { const n = Number(/^max:(\d+)$/.exec(uid)?.[1]); if (Number.isSafeInteger(n)) await send(n, text, [appButton(`session_${sessionId}`)]).catch(() => {}); }
@@ -63,7 +66,7 @@ export function createBot(service: Service, config: Config) {
     for (const r of shown) {
       const m = r.members[0], cats = r.event.categories.map(c => categoryNames[c] ?? c).join(', ');
       await send(id, `${r.event.title}\n${r.event.venue}${r.event.address ? ' · ' + r.event.address : ''}\n🕒 ${time(r.startAt)}–${time(r.endAt)} · ${r.totalPrice ? r.totalPrice + ' ₽' : 'бесплатно'}${cats ? ' · ' + cats : ''}\n🚇 ${m.travel.outbound} мин туда · вернёшься к ${time(m.returnAt)} · запас ${m.spareMinutes} мин\n${r.reasons.map(x => '✓ ' + x).join('\n')}${r.warnings.length ? '\n⚠️ ' + r.warnings.join('\n⚠️ ') : ''}`,
-        [[cb('Иду', `pick:${result.id}:${r.event.id}`), Keyboard.button.link('Маршрут', r.routeUrl)], r.sourceUrl ? [Keyboard.button.link('Источник', r.sourceUrl)] : []]);
+        [[cb('Иду', `pick:${result.id}:${r.event.id}`), Keyboard.button.link('Маршрут', r.routeUrl)], r.sourceUrl ? [Keyboard.button.link('Источник', r.sourceUrl)] : []], r.event.imageUrl);
     }
     await send(id, s.surprise ? 'Не то?' : 'Не то? Можно поменять условия:', [...(s.surprise ? [[cb('🎲 Ещё вариант', 'surprise')]] : []), [cb('Новый подбор', 'restart')]]);
   }
