@@ -1,18 +1,21 @@
 import { test, expect, type Page } from '@playwright/test';
-// No login form: outside MAX a guest session is created automatically. Without a Yandex key the local stack falls back to labelled test data.
+// No login form: outside MAX a guest session is created automatically. Labelled test data is the default; real events are one switch away.
 async function open(page: Page) { await page.goto('/'); await expect(page.getByRole('button', { name: 'Найти варианты', exact: true })).toBeEnabled(); }
 test('Одиночный поиск, карточка, выбор, оценка и состояния', async ({ page }, info) => {
   const exceptions: string[] = []; page.on('pageerror', e => exceptions.push(e.message));
   await open(page);
   await expect(page.getByRole('textbox', { name: 'Твоё имя' })).toHaveCount(0);
   await expect(page.locator('.mode-row .mode-badge')).toHaveText('Тестовые данные');
-  await expect(page.locator('footer .data-switch')).toContainText('Тестовые данные');
+  await expect(page.getByRole('button', { name: 'Перейти к реальным событиям' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Опиши вечер одной фразой' }).fill('до 1000, не дальше 30 минут, игры');
   await page.getByRole('button', { name: 'Заполнить' }).click(); await expect(page.getByRole('status')).toContainText('Заполнил');
   await expect(page.getByRole('spinbutton', { name: 'Бюджет на человека' })).toHaveValue('1000');
   await page.getByRole('button', { name: 'Найти варианты', exact: true }).click();
   await expect(page.getByRole('heading', { name: /помеща(ю|е)тся в окно/ })).toBeVisible();
   await expect(page.locator('.event-card .window-timeline').first()).toBeVisible();
+  // «игры» from the phrase is a filter: other categories are not offered.
+  await expect(page.getByRole('button', { name: 'Подробнее: Вечер настольных игр' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Подробнее: Прогулка без спешки' })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Карта' }).click(); await expect(page.locator('.results-map .map-pin').first()).toBeVisible(); await page.getByRole('tab', { name: 'Список' }).click();
   await page.screenshot({ path: `test-results/${info.project.name}-results.png`, fullPage: true });
   await page.getByRole('button', { name: 'Подробнее: Вечер настольных игр' }).click();

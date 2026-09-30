@@ -1,14 +1,18 @@
 import type { categories } from './index.js';
 type Category = typeof categories[number];
 // Rule-based parsing of a chat request (TZ §15): the main scenario never depends on an LLM.
-export type ParsedRequest = { from?: string; to?: string; budget?: number; maxTravelMinutes?: number; categories: Category[]; excludedCategories: Category[]; partySize?: number };
+export type ParsedRequest = { from?: string; to?: string; budget?: number; maxTravelMinutes?: number; categories: Category[]; excludedCategories: Category[]; partySize?: number; context?: 'calm' | 'active' | 'date' };
 // Moscow calendar day shifted by `offset` days, as YYYY-MM-DD.
 export const moscowDay = (offset = 0, now = Date.now()) => new Date(now + 3 * 3600000 + offset * 86400000).toISOString().slice(0, 10);
 const at = (day: string, hhmm: string) => `${day}T${hhmm.padStart(5, '0')}:00+03:00`;
 const hhmm = (h: string, m?: string) => Number(h) <= 23 && Number(m ?? 0) <= 59 ? `${h.padStart(2, '0')}:${(m ?? '00').padStart(2, '0')}` : null;
+// Weekday stems, Monday first: "в субботу", "в пт", "на выходных" → the nearest such day (today included).
+const weekdays = [/понедельн|(?:^|\s)пн(?=\s|$)/, /вторник|(?:^|\s)вт(?=\s|$)/, /сред[уы]|(?:^|\s)ср(?=\s|$)/, /четверг|(?:^|\s)чт(?=\s|$)/, /пятниц|(?:^|\s)пт(?=\s|$)/, /суббот|(?:^|\s)сб(?=\s|$)|выходн/, /воскресень|(?:^|\s)вс(?=\s|$)/];
 function dayOf(text: string, now: number): string | null {
   if (/послезавтра/.test(text)) return moscowDay(2, now);
   if (/завтра/.test(text)) return moscowDay(1, now);
+  const weekday = weekdays.findIndex(re => re.test(text));
+  if (weekday >= 0) { const today = (new Date(`${moscowDay(0, now)}T12:00:00+03:00`).getUTCDay() + 6) % 7; return moscowDay((weekday - today + 7) % 7, now); }
   const d = text.match(/(?:^|\s)(\d{1,2})\.(\d{1,2})(?=\s|$|,)/);
   if (d) {
     const today = moscowDay(0, now), year = Number(today.slice(0, 4));
@@ -33,7 +37,7 @@ function span(day: string, a: string, b: string) {
   return { from, to };
 }
 const words: Array<[Category, RegExp]> = [
-  ['games', /игр|настолк|квиз|квест/], ['culture', /музе|выставк|театр|галере|культур|экскурс/], ['food', /\sед[аыу]\s|кафе|поесть|ресторан|кофе|перекус/],
+  ['games', /игр|настолк|квиз|квест/], ['culture', /музе|выставк|театр|галере|культур|экскурс/], ['food', /(?<![а-я])ед[аыу](?![а-я])|кафе|поесть|ресторан|кофе|перекус/],
   ['music', /музык|концерт|джаз|рок/], ['sport', /спорт|актив|каток|скалодром|бассейн/], ['walk', /прогул|парк|погулять/], ['cinema', /кино|фильм/],
 ];
 export function parseRequest(input: string, now = Date.now()): ParsedRequest {
@@ -41,11 +45,14 @@ export function parseRequest(input: string, now = Date.now()): ParsedRequest {
   const r: ParsedRequest = { categories: [], excludedCategories: [] };
   const take = (re: RegExp) => { const m = text.match(re); if (m) text = text.replace(m[0], ' '); return m; };
   // Money and minutes first, so "до 1000" or "30 минут" are never read as clock time.
-  if (/бесплатн|без денег|даром/.test(text)) r.budget = 0;
+  // Removed from the text so that "без денег, культура" is not read as "без культуры".
+  if (take(/бесплатн\S*|без денег|даром/)) r.budget = 0;
   const money = take(/(\d+(?:[.,]\d)?)\s*тыс\S*/) ?? take(/(\d[\d ]*\d|\d)\s*(?:₽|руб\S*|р(?=[\s.]))/) ?? take(/(?:до|не дороже|бюджет|за)\s*(\d{3,5})(?!\s*(?:мин|:))/);
   if (money) { const n = Math.round(Number(money[1].replace(/ /g, '').replace(',', '.')) * (/тыс/.test(money[0]) ? 1000 : 1)); if (n >= 0 && n <= 50000) r.budget = n; }
   const travel = take(/(?:не дальше|до|максимум|не больше)?\s*(\d{1,3})\s*мин\S*/);
+  const travelHours = travel ? null : take(/(?:не дальше|не больше|максимум|в пределах)\s*(полчаса|часа|час|полутора часов)(?=\s)/);
   if (travel) { const n = Number(travel[1]); if (n >= 5 && n <= 120) r.maxTravelMinutes = n; }
+  else if (travelHours) r.maxTravelMinutes = travelHours[1] === 'полчаса' ? 30 : travelHours[1] === 'полутора часов' ? 90 : 60;
   else if (/рядом|недалеко|поблизости/.test(text)) r.maxTravelMinutes = 20;
   const date = take(/\s(\d{1,2}\.\d{1,2})(?=\s)/);
   const day = dayOf(date ? ` ${date[1]} ` : text, now) ?? moscowDay(0, now);
@@ -74,5 +81,6 @@ export function parseRequest(input: string, now = Date.now()): ParsedRequest {
     else if (re.test(text) && r.categories.length < 2) r.categories.push(cat);
   }
   if (/с девушк|с парн|с друг|с подруг|вдвоем/.test(text)) r.partySize = 2;
+  if (/свидан|романтич/.test(text)) r.context = 'date'; else if (/спокойн|тихо|расслаб|отдохнуть/.test(text)) r.context = 'calm'; else if (/активн|подвигат/.test(text)) r.context = 'active';
   return r;
 }

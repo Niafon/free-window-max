@@ -21,4 +21,9 @@ describe('Запрос свободным текстом (без LLM)', () => {
   it('Бесплатно и рядом, прямо сейчас', () => { const r = parseRequest('бесплатно рядом на полтора часа', now); expect(r).toMatchObject({ budget: 0, maxTravelMinutes: 20 }); expect(Date.parse(r.to!) - Date.parse(r.from!)).toBe(90 * 60000); expect(Date.parse(r.from!)).toBeGreaterThan(now); });
   it('Тысячи и дата', () => { const r = parseRequest('02.10 18:00-21:00 до 2 тыс', now); expect(r).toMatchObject({ from: '2026-10-02T18:00:00+03:00', budget: 2000 }); });
   it('Пустой смысл — ничего не выдумывает', () => expect(parseRequest('привет', now)).toEqual({ categories: [], excludedCategories: [] }));
+  it('«Без денег» не исключает следующую категорию', () => expect(parseRequest('без денег, культура', now)).toMatchObject({ budget: 0, categories: ['culture'], excludedCategories: [] }));
+  it('Несколько исключений, включая еду', () => expect(parseRequest('до 500 рублей, не спорт и не еда', now)).toMatchObject({ budget: 500, categories: [], excludedCategories: expect.arrayContaining(['food', 'sport']) }));
+  it('«Победа» и «среда» — не еда', () => expect(parseRequest('кино про победу', now).categories).toEqual(['cinema']));
+  it('День недели — ближайший такой день', () => expect(parseRequest('в субботу с 14 до 18, спорт', now)).toMatchObject({ from: '2026-10-03T14:00:00+03:00', to: '2026-10-03T18:00:00+03:00', categories: ['sport'] }));
+  it('Дорога в часах и настроение', () => expect(parseRequest('на свидание, не дальше часа', now)).toMatchObject({ maxTravelMinutes: 60, context: 'date' }));
 });

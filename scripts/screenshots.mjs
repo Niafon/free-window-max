@@ -18,7 +18,11 @@ async function search(page) {
   await page.goto(base);
   const find = page.getByRole('button', { name: 'Найти варианты', exact: true });
   await find.waitFor({ timeout: 30000 }); await page.waitForTimeout(500);
-  if (!(await page.locator('footer .mode-badge.live').count())) throw new Error('Real data is not enabled on this server');
+  // Test data is the default; switch to real events the way a user does.
+  const live = page.getByRole('button', { name: 'Перейти к реальным событиям' });
+  if (await live.count()) await live.click();
+  else if (!(await page.locator('.mode-badge.live').count())) throw new Error('Real data is not enabled on this server');
+  await page.locator('.mode-badge.live').waitFor();
   // A wide evening window and generous limits so the deck shows several real events, not one.
   await page.getByRole('combobox', { name: 'Свободен с' }).selectOption('17:30');
   await page.getByRole('combobox', { name: 'Свободен до' }).selectOption('22:30');
@@ -39,7 +43,7 @@ await desktop.locator('dialog .detail-body').waitFor(); await desktop.waitForTim
 await desktop.screenshot({ path: `${out}/real-detail.png` });
 const mobile = await (await browser.newContext({ ...devices['iPhone 13'] })).newPage();
 await search(mobile);
-await mobile.locator('.results').scrollIntoViewIfNeeded(); await mobile.locator('.results .section-heading').evaluate(e => e.scrollIntoView({ block: 'start' })); await mobile.waitForTimeout(800);
+await mobile.locator('.event-card').first().evaluate(e => e.scrollIntoView({ block: 'start' })); await mobile.waitForTimeout(800);
 await mobile.screenshot({ path: `${out}/real-mobile.png` });
 console.log('Titles:', await desktop.locator('.event-card .card-title').allInnerTexts());
 await browser.close();

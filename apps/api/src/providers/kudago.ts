@@ -12,7 +12,24 @@ export function parsePrice(value: string, free: boolean): { min: number | null; 
   if (range) return { min: Number(range[1].replace(/ /g, '')), max: Number(range[2].replace(/ /g, '')) };
   return { min: null, max: null };
 }
-const mapping: Record<string, string> = { exhibition: 'culture', theater: 'culture', concert: 'music', cinema: 'cinema', recreation: 'walk', 'games-and-quests': 'games', sport: 'sport', 'entertainment': 'games', 'festival': 'culture' };
+// KudaGo event categories (public-api/v1.4/event-categories) have no sport or food slugs, so those come from tags.
+const mapping: Record<string, string> = { exhibition: 'culture', theater: 'culture', festival: 'culture', education: 'culture', photo: 'culture', fashion: 'culture', holiday: 'culture', kids: 'culture',
+  concert: 'music', party: 'music', cinema: 'cinema', recreation: 'walk', tour: 'walk', quest: 'games', entertainment: 'games', 'games-and-quests': 'games', sport: 'sport', food: 'food' };
+// Stems match at the start of a word (JS \b ignores Cyrillic): «еда» must not hit «победа», «рок» not «урок».
+const stems = (list: string) => new RegExp(`(?:^|[^а-яёa-z])(?:${list})`);
+const byTag: Array<[string, RegExp]> = [
+  ['sport', stems('спорт|фитнес|йог|забег|бег$|бег |пробег|велосипед|велопрогул|футбол|хоккей|баскетбол|волейбол|теннис|тренировк|каток|лыж|плаван|скалолаз|бокс|единоборств')],
+  ['food', stems('еда|гастроном|кулинар|дегустац|ресторан|кофе|вино|винн|пиво|пивн|фуд|ужин|завтрак|чаепит')],
+  ['games', stems('настольн|квест|игр|квиз|мафи')],
+  ['music', stems('концерт|музык|джаз|рок$|рок |рок-|dj|диджей|вечеринк')],
+  ['cinema', stems('кино|фильм')],
+  ['walk', stems('прогулк|экскурси|парк|пешеход')],
+];
+export function mapCategories(rawCats: string[], tags: string[]) {
+  const found = new Set<string>(rawCats.map(c => mapping[c]).filter(Boolean));
+  for (const tag of tags.map(t => String(t).toLowerCase())) for (const [category, pattern] of byTag) if (pattern.test(tag)) found.add(category);
+  return found.size ? [...found] : ['culture'];
+}
 const FRESH = 10 * 60000, STALE = 3 * 3600000, PAGES = 5;
 const WEEK = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 // Opening hours for one weekday (0 = Monday) from KudaGo text like "пн–пт 12:00–22:00, сб, вс 10:00–22:00".
@@ -103,7 +120,7 @@ export class KudaGoProvider implements EventProvider {
       const image = row.images?.find((i: any) => typeof i?.image === 'string' && i.image.startsWith('https://media.kudago.com/'))?.image ?? null;
       const sourceUrl = typeof row.site_url === 'string' && /^https:\/\/(?:www\.)?kudago\.com\//.test(row.site_url) ? row.site_url : null;
       const base = { provider: 'kudago' as const, externalId: String(row.id), title: String(row.title), description: String(row.description ?? '').replace(/<[^>]*>/g, '').slice(0, 1200),
-        categories: [...new Set<string>(rawCats.map(c => mapping[c] ?? 'culture'))], tags: row.tags ?? [], ageRestriction: parseInt(row.age_restriction || '0') || 0,
+        categories: mapCategories(rawCats, row.tags ?? []), tags: row.tags ?? [], ageRestriction: parseInt(row.age_restriction || '0') || 0,
         priceMin: price.min, priceMax: price.max, priceKnown: price.max !== null, isFree: !!row.is_free, availability: 'unknown' as const, venueId: `kudago-${row.place.id}`, venue: row.place.title ?? 'Площадка KudaGo', address: row.place.address ?? 'Адрес уточните у источника',
         latitude: coords.lat, longitude: coords.lon, sourceUrl, imageUrl: image, sourceUpdatedAt: new Date().toISOString(), sourcePublishedAt: row.publication_date ? new Date(row.publication_date * 1000).toISOString() : undefined, demo: false, accent: 'lavender' };
       let visit = false;

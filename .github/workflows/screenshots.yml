@@ -6,9 +6,6 @@ on:
       url:
         description: Deployed HTTPS origin with YANDEX_MAPS_KEY
         default: https://77-91-95-175.sslip.io
-  push:
-    branches: ['claude/**']
-    paths: ['scripts/screenshots.mjs']
 permissions:
   contents: write
 concurrency:
