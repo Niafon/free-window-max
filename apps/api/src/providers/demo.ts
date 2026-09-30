@@ -14,7 +14,7 @@ export class DemoEventProvider implements EventProvider {
       address: e.address, latitude: e.lat, longitude: e.lon, sourceUrl: null, imageUrl: null,
       sourceUpdatedAt: '2026-09-30T00:00:00+03:00', demo: true, accent: e.accent }));
     this.last.clear(); events.forEach(e => this.last.set(e.id, e));
-    return { events, notices: ['Демонстрационные события. Названия площадок, цены, расписание и места смоделированы; бронирование недоступно.'] };
+    return { events, notices: ['Тестовые данные: названия площадок, цены, расписание и места смоделированы; бронирование недоступно.'] };
   }
   async getEvent(id: string) { return this.last.get(id); }
 }
@@ -23,7 +23,7 @@ export class DemoRouteProvider implements RouteProvider {
     if (!event.demo) throw new AppError('ROUTE_PROVIDER_ERROR', 'Для реальных событий нужен реальный провайдер маршрутов', 503, true);
     const index = ['mirea', 'stromynka', 'southwest', 'center'].indexOf(origin.preset ?? '');
     const item = data.find(d => d.id === event.externalId);
-    if (index < 0 || !item) throw new AppError('ROUTE_PROVIDER_ERROR', 'В деморежиме выберите одну из четырёх точек старта', 422);
+    if (index < 0 || !item) throw new AppError('ROUTE_PROVIDER_ERROR', 'Для тестовых данных выберите одну из четырёх точек старта', 422);
     return { outbound: item.routes[index], inbound: item.routes[index] + 2, mode: 'transit' as const, modelled: true, provider: 'demo-table-v1' };
   }
 }

@@ -3,7 +3,7 @@
   "info": {
     "title": "ОКНО API",
     "version": "1.0.0",
-    "description": "MAX mini app. Демо явно обозначено; реальные данные включаются dataMode=live."
+    "description": "MAX mini app. В браузере вход гостевой и автоматический. Реальные данные: dataMode=live, тестовые явно помечены: dataMode=demo."
   },
   "components": {
     "securitySchemes": {
@@ -12,10 +12,10 @@
         "in": "header",
         "name": "X-Max-Init-Data"
       },
-      "DemoCookie": {
+      "GuestCookie": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "okno_demo"
+        "name": "okno_guest"
       }
     },
     "schemas": {}
@@ -110,28 +110,22 @@
         }
       }
     },
-    "/api/v1/auth/demo": {
+    "/api/v1/auth/guest": {
       "post": {
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
+                "default": {},
                 "type": "object",
                 "properties": {
                   "name": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 40
-                  },
-                  "accessKey": {
-                    "type": "string",
-                    "maxLength": 200
                   }
-                },
-                "required": [
-                  "name"
-                ]
+                }
               }
             }
           }
@@ -519,7 +513,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -936,7 +930,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -1459,7 +1453,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -2192,7 +2186,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -3054,7 +3048,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -3452,7 +3446,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -3850,7 +3844,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -4248,7 +4242,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -4776,7 +4770,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -5913,7 +5907,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -6585,7 +6579,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -7231,7 +7225,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -7904,7 +7898,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -8305,7 +8299,10 @@
                       "route_open",
                       "source_open",
                       "share",
-                      "app_open"
+                      "app_open",
+                      "card_open",
+                      "time_to_result",
+                      "time_to_select"
                     ]
                   },
                   "durationMs": {
@@ -8326,7 +8323,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {
@@ -8712,6 +8709,397 @@
         }
       }
     },
+    "/api/v1/stats": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "default": 7,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            },
+            "in": "query",
+            "name": "days",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/quota": {
       "get": {
         "security": [
@@ -8719,7 +9107,7 @@
             "MaxInitData": []
           },
           {
-            "DemoCookie": []
+            "GuestCookie": []
           }
         ],
         "responses": {

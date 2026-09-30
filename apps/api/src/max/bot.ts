@@ -23,7 +23,7 @@ export function createBot(service: Service, config: Config) {
     const filled = rows.filter(r => r.length), attachments: any[] = [...(image ? [{ type: 'image', payload: { url: image } }] : []), ...(filled.length ? [Keyboard.inlineKeyboard(filled)] : [])];
     try { return await bot.api.sendMessageToUser(id, text, attachments.length ? { attachments } : undefined); } catch (error) { if (!image) throw error; return send(id, text, rows); }
   };
-  // Group session events are delivered to MAX members only; demo users have no chat.
+  // Group session events are delivered to MAX members only; browser guests have no chat.
   service.notify = async (userIds, text, sessionId) => {
     for (const uid of userIds) { const n = Number(/^max:(\d+)$/.exec(uid)?.[1]); if (Number.isSafeInteger(n)) await send(n, text, [appButton(`session_${sessionId}`)]).catch(() => {}); }
   };

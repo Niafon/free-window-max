@@ -6,11 +6,10 @@ localBaseUrl: http://127.0.0.1:3000
 contentType: application/json
 roles:
   anonymous: { description: 'Без входа' }
-  owner: { description: 'Аня, создатель компании, отдельная cookie' }
-  member: { description: 'Борис, участник, отдельная cookie' }
+  owner: { description: 'Аня, создатель компании, отдельная гостевая cookie' }
+  member: { description: 'Борис, участник, отдельная гостевая cookie' }
 variables:
   TEST_DATE: tomorrow_in_Europe_Moscow
-  DEMO_ACCESS_KEY: environment_or_empty_for_local
 defaults:
   query: {}
   pathParameters: {}
@@ -29,15 +28,15 @@ checks:
     expected: { status: [401], contentType: application/json, jsonType: object, required: [error.code, error.message, error.retryable] }
   - id: loginOwner
     method: POST
-    path: /api/v1/auth/demo
+    path: /api/v1/auth/guest
     role: owner
-    body: { name: 'Аня', accessKey: '{{DEMO_ACCESS_KEY}}' }
+    body: { name: 'Аня' }
     expected: { status: [200], contentType: application/json, jsonType: object, required: [user.id, user.name, mode] }
   - id: loginMember
     method: POST
-    path: /api/v1/auth/demo
+    path: /api/v1/auth/guest
     role: member
-    body: { name: 'Борис', accessKey: '{{DEMO_ACCESS_KEY}}' }
+    body: { name: 'Борис' }
     expected: { status: [200], contentType: application/json, jsonType: object, required: [user.id, user.name, mode] }
   - id: interests
     method: PUT

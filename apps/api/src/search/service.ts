@@ -15,7 +15,7 @@ export class Service {
   constructor(public database: Database, public config: Config) {
     this.yandex = new YandexRouteProvider(config.YANDEX_MAPS_KEY, async () => {
       const r = await database.pool.query(`INSERT INTO provider_quota(day,used) VALUES ((now() AT TIME ZONE 'Europe/Moscow')::date,1) ON CONFLICT(day) DO UPDATE SET used=provider_quota.used+1 WHERE provider_quota.used < $1 RETURNING used`, [config.YANDEX_DAILY_LIMIT]);
-      if (!r.rows.length || config.YANDEX_DAILY_LIMIT === 0) throw new AppError('RATE_LIMITED', 'Дневной лимит маршрутов исчерпан. Демо остаётся доступно.', 429);
+      if (!r.rows.length || config.YANDEX_DAILY_LIMIT === 0) throw new AppError('RATE_LIMITED', 'Дневной лимит реальных маршрутов исчерпан. Тестовые данные остаются доступны.', 429);
     });
   }
   // Set by the MAX bot; group events reach members in chat. Delivery failures never break the API call.

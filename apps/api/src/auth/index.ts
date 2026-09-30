@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { AppError } from '../errors.js';
 export function validateInitData(raw: string, token: string, maxAge = 86400, now = Date.now()) {
   const fail = () => new AppError('UNAUTHORIZED', 'Откройте приложение заново из MAX', 401);
@@ -21,3 +21,19 @@ export function validateInitData(raw: string, token: string, maxAge = 86400, now
   } catch { throw fail(); }
 }
 export function equalSecret(a: string, b: string) { const x = Buffer.from(a); const y = Buffer.from(b); return x.length > 0 && x.length === y.length && timingSafeEqual(x, y); }
+// Browser guests get a signed, self-contained cookie, so sessions survive restarts and need no server-side store.
+export function guestSecret(botToken: string) { return createHmac('sha256', 'okno-guest').update(botToken || randomBytes(32)).digest(); }
+export function signGuest(identity: { id: string; name: string }, secret: Buffer, ttlSeconds: number, now = Date.now()) {
+  const payload = Buffer.from(JSON.stringify({ id: identity.id, name: identity.name, exp: Math.floor(now / 1000) + ttlSeconds })).toString('base64url');
+  return `${payload}.${createHmac('sha256', secret).update(payload).digest('base64url')}`;
+}
+export function verifyGuest(token: string, secret: Buffer, now = Date.now()) {
+  const [payload, signature, extra] = token.split('.');
+  if (!payload || !signature || extra !== undefined || token.length > 1000) return null;
+  if (!equalSecret(signature, createHmac('sha256', secret).update(payload).digest('base64url'))) return null;
+  try {
+    const value = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (typeof value.id !== 'string' || !value.id.startsWith('guest:') || typeof value.name !== 'string' || !(value.exp > now / 1000)) return null;
+    return { id: value.id as string, name: value.name as string };
+  } catch { return null; }
+}

@@ -1,11 +1,11 @@
-// Latency check for TZ §24 targets. Run against a disposable instance with DEMO_AUTH=true and TRUST_PROXY_HOPS=1:
+// Latency check for TZ §24 targets. Run against a disposable instance with TRUST_PROXY_HOPS=1:
 //   BENCH_URL=http://127.0.0.1:3000 node scripts/bench.mjs
 // Each simulated client uses its own X-Forwarded-For, so per-client rate limits behave as in production.
 const base = process.env.BENCH_URL ?? 'http://127.0.0.1:3000';
 const clients = Number(process.env.BENCH_CLIENTS ?? 10);
 const ip = i => `10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`;
 async function login(i) {
-  const r = await fetch(`${base}/api/v1/auth/demo`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': ip(i), origin: base }, body: JSON.stringify({ name: `Bench ${i}`, accessKey: process.env.DEMO_ACCESS_KEY }) });
+  const r = await fetch(`${base}/api/v1/auth/guest`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': ip(i), origin: base }, body: JSON.stringify({ name: `Bench ${i}` }) });
   if (!r.ok) throw new Error(`login ${r.status}`);
   return r.headers.get('set-cookie').split(';')[0];
 }
