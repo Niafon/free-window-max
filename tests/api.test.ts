@@ -29,6 +29,7 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
     const shared = await call('GET', `/api/v1/plans/${p.json().id}`, undefined, bob); expect(shared.statusCode).toBe(200); expect(shared.json().candidate.members).toEqual([]); expect(shared.json().candidate.routeUrl).not.toContain('rtext');
   });
   it('Создание компании → приглашение → параметры двух участников → общий результат', async () => {
+    const notes: Array<{ ids: string[]; text: string }> = []; ctx.service.notify = async (ids, text) => { notes.push({ ids, text }); };
     const r = await call('POST', '/api/v1/sessions', { title: 'После пар', preferences: pref() }); expect(r.statusCode).toBe(201); sid = r.json().id;
     expect((await call('GET', `/api/v1/sessions/${sid}`, undefined, bob)).statusCode).toBe(403);
     expect((await call('POST', `/api/v1/sessions/${sid}/join`, undefined, bob)).statusCode).toBe(200);
@@ -45,6 +46,10 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
     expect((await call('POST', `/api/v1/sessions/${sid}/select`, body)).statusCode).toBe(201);
     await call('PUT', `/api/v1/sessions/${sid}/preferences`, pref(), bob);
     expect((await call('POST', `/api/v1/sessions/${sid}/select`, body)).statusCode).toBe(409);
+    const owner = r.json().ownerId;
+    for (const [text, toOwner] of [['присоединяется', true], ['указали параметры', true], ['Общий подбор', false], ['Выбран план', false]] as const)
+      expect(notes.some(n => n.text.includes(text) && (toOwner ? n.ids.includes(owner) : !n.ids.includes(owner) && n.ids.length === 1))).toBe(true);
+    ctx.service.notify = async () => {};
   });
   it('Повторное присоединение идемпотентно; чужие точные параметры скрыты', async () => { const r = await call('POST', `/api/v1/sessions/${sid}/join`, undefined, bob); expect(r.json().members).toHaveLength(2); expect(r.json().members.find((m: any) => m.name === 'Аня').preferences).toBeNull(); });
   it('Выбор и открытие реального плана не повторяют расчёт маршрутов и не сохраняют их', async () => {
@@ -73,7 +78,35 @@ describe.skipIf(!url)('PostgreSQL/PostGIS + API + MAX', () => {
     const start = { update_type: 'bot_started', timestamp: Date.now(), user: { user_id: 456, first_name: 'Тест' } };
     await integration.process(start); const count = sent.length; await integration.process(start); expect(sent).toHaveLength(count);
     for (const payload of ['window:evening', 'budget:1000', 'origin:0', 'travel:30']) await integration.process({ update_type: 'message_callback', callback: { user: start.user, callback_id: randomUUID(), payload } });
-    expect(sent.some(s => s.text.includes('В твоё окно помещается'))).toBe(true);
+    expect(sent.some(s => s.text.startsWith('Успеешь'))).toBe(true);
+    expect(sent.every(s => !s.extra || s.extra.attachments[0].payload.buttons.length > 0)).toBe(true);
     } finally { clock.mockRestore(); }
+  });
+  it('Бот принимает своё окно на завтра и свою сумму бюджета текстом', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse(`${testDate}T10:00:00+03:00`));
+    try {
+    const integration = createBot(ctx.service, readConfig({ BOT_TOKEN: 'unit-test-only' })); const sent: any[] = [];
+    vi.spyOn(integration.bot.api, 'sendMessageToUser').mockImplementation(async (_id, text, extra) => { sent.push({ text, extra }); return {} as any; });
+    vi.spyOn(integration.bot.api, 'answerOnCallback').mockResolvedValue({ success: true } as any);
+    const user = { user_id: 789, first_name: 'Текст' };
+    const tap = (payload: string) => integration.process({ update_type: 'message_callback', callback: { user, callback_id: randomUUID(), payload } });
+    const say = (text: string) => integration.process({ update_type: 'message_created', message: { sender: user, body: { mid: randomUUID(), text } } });
+    await integration.process({ update_type: 'bot_started', timestamp: Date.now(), user });
+    await tap('window:custom'); await say('в полночь'); expect(sent.at(-1).text).toContain('Не понял время');
+    await say('завтра 18:30–21:30'); expect(sent.at(-1).text).toContain('Сколько готов потратить');
+    await tap('budget:custom'); await say('много'); expect(sent.at(-1).text).toContain('целое число');
+    await say('1500 ₽'); expect(sent.at(-1).text).toContain('Откуда выходим');
+    await tap('origin:0'); await tap('travel:60');
+    expect(sent.some(s => s.text.startsWith('Успеешь'))).toBe(true);
+    expect(sent.every(s => !s.extra || s.extra.attachments[0].payload.buttons.length > 0)).toBe(true);
+    } finally { clock.mockRestore(); }
+  });
+  it('Сбой отправки в MAX не вызывает повторных доставок, если пользователь получил ответ', async () => {
+    const integration = createBot(ctx.service, readConfig({ BOT_TOKEN: 'unit-test-only' })); let calls = 0;
+    vi.spyOn(integration.bot.api, 'sendMessageToUser').mockImplementation(async () => { if (++calls === 1) throw Object.assign(new Error('Bad request'), { status: 400 }); return {} as any; });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const update = { update_type: 'bot_started', timestamp: Date.now(), user: { user_id: 999, first_name: 'Сбой' } };
+    await expect(integration.process(update)).resolves.toBeUndefined(); await integration.process(update);
+    expect(calls).toBe(2);
   });
 });

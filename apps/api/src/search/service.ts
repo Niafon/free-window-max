@@ -18,6 +18,9 @@ export class Service {
       if (!r.rows.length || config.YANDEX_DAILY_LIMIT === 0) throw new AppError('RATE_LIMITED', 'Дневной лимит маршрутов исчерпан. Демо остаётся доступно.', 429);
     });
   }
+  // Set by the MAX bot; group events reach members in chat. Delivery failures never break the API call.
+  notify: (userIds: string[], text: string, sessionId: string) => Promise<void> = async () => {};
+  announce(userIds: string[], text: string, sessionId: string) { if (userIds.length) void this.notify(userIds, text, sessionId).catch(() => {}); }
   get db() { return this.database.db; }
   ownRoute(result: SearchResult, p: Preferences): SearchResult {
     return { ...result, results: result.results.map(c => ({ ...c, routeUrl: `https://yandex.ru/maps/?rtext=${p.origin.lat},${p.origin.lon}~${c.event.latitude},${c.event.longitude}&rtt=mt` })) };
@@ -98,7 +101,7 @@ export class Service {
     return { ...session, members, inviteUrl: this.config.BOT_USERNAME && this.config.PUBLIC_URL.startsWith('https://') ? `https://max.ru/${this.config.BOT_USERNAME}?startapp=session_${id}` : `${this.config.PUBLIC_URL}/?session=${id}` };
   }
   async join(id: string, u: Identity) {
-    await this.session(id, u, true);
+    await this.session(id, u, true); let joined = false;
     await this.db.transaction(async tx => {
       await tx.execute((await import('drizzle-orm')).sql`SELECT id FROM planning_sessions WHERE id=${id} FOR UPDATE`);
       const members = await tx.select().from(sessionMembers).where(eq(sessionMembers.sessionId, id));
@@ -106,8 +109,11 @@ export class Service {
       if (members.length >= 5) throw new AppError('GROUP_FULL', 'В компании уже пять человек', 409);
       await tx.insert(sessionMembers).values({ sessionId: id, userId: u.id, name: u.name });
       await tx.update(planningSessions).set({ searchId: null, selectedId: null, revision: (await this.session(id, u, true)).revision + 1 }).where(eq(planningSessions.id, id));
+      joined = true;
     });
-    return this.session(id, u);
+    const s = await this.session(id, u);
+    if (joined) this.announce([s.ownerId], `${u.name} присоединяется к «${s.title}». В компании ${s.members.length} из 5.`, id);
+    return s;
   }
   async preferences(id: string, u: Identity, p: Preferences) {
     this.validateDates(p); await this.session(id, u);
@@ -117,7 +123,11 @@ export class Service {
       await tx.update(sessionMembers).set({ preferences: p }).where(and(eq(sessionMembers.sessionId, id), eq(sessionMembers.userId, u.id)));
       await tx.execute(sql`UPDATE planning_sessions SET search_id=NULL,selected_id=NULL,revision=revision+1 WHERE id=${id}`);
     });
-    return this.session(id, u);
+    const s = await this.session(id, u);
+    if (u.id === s.ownerId) { /* the owner sees the group state in the app */ }
+    else if (s.members.length > 1 && s.members.every(m => m.preferences)) this.announce([s.ownerId], `Все участники «${s.title}» (${s.members.length}) указали параметры. Можно запускать общий подбор.`, id);
+    else this.announce([s.ownerId], `${u.name} обновляет свои параметры в «${s.title}». Ждём остальных.`, id);
+    return s;
   }
   async groupSearch(id: string, u: Identity) {
     const s = await this.session(id, u);
@@ -126,6 +136,7 @@ export class Service {
     const result = await this.search(u, s.members[0].preferences!, id, s.members);
     const changed = await this.db.update(planningSessions).set({ searchId: result.id, selectedId: null }).where(and(eq(planningSessions.id, id), eq(planningSessions.revision, s.revision))).returning();
     if (!changed.length) throw new AppError('SESSION_CHANGED', 'Кто-то изменил параметры. Повторите общий подбор', 409);
+    this.announce(s.members.filter(m => m.userId !== u.id).map(m => m.userId), result.results.length ? `Общий подбор «${s.title}» готов: ${result.results.length} вар., которые подходят каждому.` : `Для «${s.title}» общих вариантов нет. Создатель предложит изменить условия.`, id);
     return result;
   }
   async select(u: Identity, searchId: string, eventId: string, sessionId?: string) {
@@ -143,6 +154,8 @@ export class Service {
       if (s.ownerId !== u.id) throw new AppError('FORBIDDEN', 'Общий вариант выбирает создатель компании', 403);
       const updated = await this.db.update(planningSessions).set({ selectedId: eventId }).where(and(eq(planningSessions.id, sessionId), eq(planningSessions.searchId, searchId))).returning();
       if (!updated.length) throw new AppError('SESSION_CHANGED', 'Параметры изменились, повторите подбор', 409);
+      const when = new Date(candidate.startAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+      this.announce(s.members.filter(m => m.userId !== u.id).map(m => m.userId), `Выбран план «${s.title}»: ${candidate.event.title}, ${when}. ${candidate.event.address || candidate.event.venue}`, sessionId);
     }
     const id = randomUUID(); await this.db.insert(plans).values({ id, userId: u.id, searchId, eventId, snapshot: this.shareCard(candidate) });
     await this.database.pool.query('INSERT INTO metrics(kind) VALUES($1)', ['selection']);

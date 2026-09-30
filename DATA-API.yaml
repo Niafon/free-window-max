@@ -1,7 +1,7 @@
 schemaVersion: '1.0'
 name: 'ОКНО / Свободное окно MAX'
-# Replace before submission; intentionally not a claimed running endpoint.
-baseUrl: https://okno.example.com
+# Боевой HTTPS на VPS (Caddy + Let's Encrypt).
+baseUrl: https://77-91-95-175.sslip.io
 localBaseUrl: http://127.0.0.1:3000
 contentType: application/json
 roles:

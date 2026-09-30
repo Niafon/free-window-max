@@ -6,7 +6,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env) {
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(1).default(0),
     DATABASE_URL: z.string().default('postgres://okno:okno_local_only@localhost:5432/okno'),
     BOT_TOKEN: z.string().default(''), BOT_USERNAME: z.string().default(''),
-    MAX_API_URL: z.string().url().default('https://platform-api2.max.ru'),
+    MAX_API_URL: z.string().url().default('https://platform-api.max.ru'),
     MAX_MODE: z.enum(['off', 'polling', 'webhook']).default('off'), MAX_WEBHOOK_SECRET: z.string().default(''),
     EVENT_PROVIDER: z.enum(['demo', 'kudago']).default('demo'), ROUTE_PROVIDER: z.enum(['demo', 'yandex']).default('demo'),
     YANDEX_MAPS_KEY: z.string().default(''), YANDEX_DAILY_LIMIT: z.coerce.number().int().min(0).max(100).default(80), DEMO_AUTH: z.string().default('false').transform(v => v === 'true'),
